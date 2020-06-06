@@ -2423,22 +2423,18 @@ var __importStar = (this && this.__importStar) || function (mod) {
     result["default"] = mod;
     return result;
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(__webpack_require__(470));
-const github_1 = __importDefault(__webpack_require__(469));
+const github_1 = __webpack_require__(469);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             // const apiKey = core.getInput('api_key', {required: true})
             const githubToken = core.getInput('github_token', { required: true });
-            const context = github_1.default.context;
-            const payload = github_1.default.context.payload;
+            const payload = github_1.context.payload;
             let commits;
-            const octokit = github_1.default.getOctokit(githubToken);
-            switch (context.eventName) {
+            const octokit = github_1.getOctokit(githubToken);
+            switch (github_1.context.eventName) {
                 case 'push':
                     commits = payload.commits;
                     break;
@@ -2446,11 +2442,12 @@ function run() {
                     commits = yield octokit.paginate(`GET ${payload.pull_request.commits_url}`);
                     break;
                 default:
-                    throw new Error(`Unsupported event '${context.eventName}'`);
+                    throw new Error(`Unsupported event '${github_1.context.eventName}'`);
             }
             core.debug(`commits: ${JSON.stringify(commits, null, 4)}`);
         }
         catch (error) {
+            core.debug(error);
             core.setFailed(error.message);
         }
     });
