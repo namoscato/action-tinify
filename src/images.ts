@@ -4,14 +4,15 @@ import Image from 'image'
 
 const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png']
 
-export default class Images {
-  private images: Set<Image>
-
-  constructor() {
-    this.images = new Set()
-  }
+export default class Images implements Iterable<Image> {
+  private readonly filenames = new Set<string>()
+  private readonly images: Image[] = []
 
   addFile(filename: string): void {
+    if (this.filenames.has(filename)) {
+      return core.debug(`[${filename}] Skipping duplicate file`)
+    }
+
     const mimeType = mime.getType(filename)
 
     if (null === mimeType) {
@@ -25,10 +26,12 @@ export default class Images {
     }
 
     core.debug(`[${filename}] Adding ${mimeType} image`)
-    this.images.add(new Image(filename))
+
+    this.filenames.add(filename)
+    this.images.push(new Image(filename))
   }
 
-  all(): IterableIterator<Image> {
+  [Symbol.iterator](): IterableIterator<Image> {
     return this.images.values()
   }
 }

@@ -2749,42 +2749,20 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(__webpack_require__(470));
 const github = __importStar(__webpack_require__(469));
-const github_1 = __webpack_require__(430);
 const images_1 = __importDefault(__webpack_require__(666));
 const tinify_1 = __importDefault(__webpack_require__(82));
+const git_1 = __importDefault(__webpack_require__(984));
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             tinify_1.default.key = core.getInput('api_key', { required: true });
-            const githubToken = core.getInput('github_token', { required: true });
-            const octokit = github.getOctokit(githubToken);
-            const context = github.context;
-            const filePromises = [];
-            switch (context.eventName) {
-                case github_1.ContextEventName.Push:
-                    for (const commit of context.payload.commits) {
-                        const ref = commit.id;
-                        core.debug(`[${context.eventName}] Fetching files for commit ${ref}`);
-                        filePromises.push(octokit.repos
-                            .getCommit(Object.assign(Object.assign({}, github.context.repo), { ref }))
-                            .then(response => response.data.files));
-                    }
-                    break;
-                case github_1.ContextEventName.PullRequest:
-                    core.debug(`[${context.eventName}] Fetching files for pull request ${context.payload.number}`);
-                    filePromises.push(octokit.paginate('GET /repos/:owner/:repo/pulls/:pull_number/files', Object.assign(Object.assign({}, github.context.repo), { pull_number: context.payload.number // eslint-disable-line @typescript-eslint/camelcase
-                     })));
-                    break;
-                default:
-                    assertUnsupportedEvent(context);
-            }
+            const git = new git_1.default(github.getOctokit(core.getInput('github_token', { required: true })));
+            const files = yield git.getFiles(github.context);
             const images = new images_1.default();
-            for (const files of yield Promise.all(filePromises)) {
-                for (const file of files) {
-                    images.addFile(file.filename);
-                }
+            for (const file of files) {
+                images.addFile(file.filename);
             }
-            for (const image of images.all()) {
+            for (const image of images) {
                 core.info(`[${image.getFilename()}] Compressing image`);
                 yield image.compress();
             }
@@ -2794,9 +2772,6 @@ function run() {
             core.setFailed(error.message);
         }
     });
-}
-function assertUnsupportedEvent(context) {
-    throw new Error(`Unsupported event ${context.eventName} (currently supported events include ${Object.values(github_1.ContextEventName).join(', ')})`);
 }
 run();
 
@@ -3131,6 +3106,338 @@ exports.Context = Context;
 
 /***/ }),
 
+/***/ 274:
+/***/ (function(__unusedmodule, exports) {
+
+/**
+ * Extracts Sanyo flavored Makernotes.
+ */
+exports.extractMakernotes = function (data, makernoteOffset, tiffOffset) {
+
+  // List of vendor specific Makernote tags found on
+  // http://www.sno.phy.queensu.ca/~phil/exiftool/TagNames/Sanyo.html
+  var tags = {
+
+    0x00FF : "MakerNoteOffset",
+    0x0100 : "SanyoThumbnail",
+    0x0200 : "SpecialMode",
+    0x0201 : "SanyoQuality",
+    0x0202 : "Macro",
+    0x0204 : "DigitalZoom",
+    0x0207 : "SoftwareVersion",
+    0x0208 : "PictInfo",
+    0x0209 : "CameraID",
+    0x020E : "SequentialShot",
+    0x020F : "WideRange",
+    0x0210 : "ColorAdjustmentMode",
+    0x0213 : "QuickShot",
+    0x0214 : "SelfTimer",
+    0x0216 : "VoiceMemo",
+    0x0217 : "RecordShutterRelease",
+    0x0218 : "FlickerReduce",
+    0x0219 : "OpticalZoomOn",
+    0x021B : "DigitalZoomOn",
+    0x021D : "LightSourceSpecial",
+    0x021E : "Resaved",
+    0x021F : "SceneSelect",
+    0x0223 : function (entry) {
+
+      switch (entry.format) {
+        case 0x0005:
+          return "ManualFocusDistance";
+        case 0x0007:
+          return "FaceInfo";
+        default:
+          return false;
+      }
+
+    },
+    0x0224 : "SequenceShotInterval",
+    0x0225 : "FlashMode",
+    0x0E00 : "PrintIM",
+    0x0F00 : "DataDump"
+
+  };
+
+  // Sanyo flavored Makernote data starts after eight bytes
+  var ifdOffset = makernoteOffset + 8;
+
+  // Get the number of entries and extract them
+  var numberOfEntries = data.getShort(ifdOffset, this.isBigEndian);
+  if (this.options.sanyoMaxEntries) {
+    numberOfEntries=Math.min(numberOfEntries, this.options.sanyoMaxEntries);
+  }
+
+  var makernoteData = {};
+
+  for (var i = 0; i < numberOfEntries; i++) {
+    var exifEntry = this.extractExifEntry(data, (ifdOffset + 2 + (i * 12)), tiffOffset, this.isBigEndian, tags);
+    if (exifEntry && exifEntry.tagName) {
+      makernoteData[exifEntry.tagName] = exifEntry.value;
+    }
+  }
+
+  return makernoteData;
+
+};
+
+/***/ }),
+
+/***/ 275:
+/***/ (function(module, exports, __webpack_require__) {
+
+/**
+ * Module dependencies.
+ */
+
+var tty = __webpack_require__(867);
+var util = __webpack_require__(669);
+
+/**
+ * This is the Node.js implementation of `debug()`.
+ *
+ * Expose `debug()` as the module.
+ */
+
+exports = module.exports = __webpack_require__(852);
+exports.init = init;
+exports.log = log;
+exports.formatArgs = formatArgs;
+exports.save = save;
+exports.load = load;
+exports.useColors = useColors;
+
+/**
+ * Colors.
+ */
+
+exports.colors = [6, 2, 3, 4, 5, 1];
+
+/**
+ * Build up the default `inspectOpts` object from the environment variables.
+ *
+ *   $ DEBUG_COLORS=no DEBUG_DEPTH=10 DEBUG_SHOW_HIDDEN=enabled node script.js
+ */
+
+exports.inspectOpts = Object.keys(process.env).filter(function (key) {
+  return /^debug_/i.test(key);
+}).reduce(function (obj, key) {
+  // camel-case
+  var prop = key
+    .substring(6)
+    .toLowerCase()
+    .replace(/_([a-z])/g, function (_, k) { return k.toUpperCase() });
+
+  // coerce string value into JS value
+  var val = process.env[key];
+  if (/^(yes|on|true|enabled)$/i.test(val)) val = true;
+  else if (/^(no|off|false|disabled)$/i.test(val)) val = false;
+  else if (val === 'null') val = null;
+  else val = Number(val);
+
+  obj[prop] = val;
+  return obj;
+}, {});
+
+/**
+ * The file descriptor to write the `debug()` calls to.
+ * Set the `DEBUG_FD` env variable to override with another value. i.e.:
+ *
+ *   $ DEBUG_FD=3 node script.js 3>debug.log
+ */
+
+var fd = parseInt(process.env.DEBUG_FD, 10) || 2;
+
+if (1 !== fd && 2 !== fd) {
+  util.deprecate(function(){}, 'except for stderr(2) and stdout(1), any other usage of DEBUG_FD is deprecated. Override debug.log if you want to use a different log function (https://git.io/debug_fd)')()
+}
+
+var stream = 1 === fd ? process.stdout :
+             2 === fd ? process.stderr :
+             createWritableStdioStream(fd);
+
+/**
+ * Is stdout a TTY? Colored output is enabled when `true`.
+ */
+
+function useColors() {
+  return 'colors' in exports.inspectOpts
+    ? Boolean(exports.inspectOpts.colors)
+    : tty.isatty(fd);
+}
+
+/**
+ * Map %o to `util.inspect()`, all on a single line.
+ */
+
+exports.formatters.o = function(v) {
+  this.inspectOpts.colors = this.useColors;
+  return util.inspect(v, this.inspectOpts)
+    .split('\n').map(function(str) {
+      return str.trim()
+    }).join(' ');
+};
+
+/**
+ * Map %o to `util.inspect()`, allowing multiple lines if needed.
+ */
+
+exports.formatters.O = function(v) {
+  this.inspectOpts.colors = this.useColors;
+  return util.inspect(v, this.inspectOpts);
+};
+
+/**
+ * Adds ANSI color escape codes if enabled.
+ *
+ * @api public
+ */
+
+function formatArgs(args) {
+  var name = this.namespace;
+  var useColors = this.useColors;
+
+  if (useColors) {
+    var c = this.color;
+    var prefix = '  \u001b[3' + c + ';1m' + name + ' ' + '\u001b[0m';
+
+    args[0] = prefix + args[0].split('\n').join('\n' + prefix);
+    args.push('\u001b[3' + c + 'm+' + exports.humanize(this.diff) + '\u001b[0m');
+  } else {
+    args[0] = new Date().toUTCString()
+      + ' ' + name + ' ' + args[0];
+  }
+}
+
+/**
+ * Invokes `util.format()` with the specified arguments and writes to `stream`.
+ */
+
+function log() {
+  return stream.write(util.format.apply(util, arguments) + '\n');
+}
+
+/**
+ * Save `namespaces`.
+ *
+ * @param {String} namespaces
+ * @api private
+ */
+
+function save(namespaces) {
+  if (null == namespaces) {
+    // If you set a process.env field to null or undefined, it gets cast to the
+    // string 'null' or 'undefined'. Just delete instead.
+    delete process.env.DEBUG;
+  } else {
+    process.env.DEBUG = namespaces;
+  }
+}
+
+/**
+ * Load `namespaces`.
+ *
+ * @return {String} returns the previously persisted debug modes
+ * @api private
+ */
+
+function load() {
+  return process.env.DEBUG;
+}
+
+/**
+ * Copied from `node/src/node.js`.
+ *
+ * XXX: It's lame that node doesn't expose this API out-of-the-box. It also
+ * relies on the undocumented `tty_wrap.guessHandleType()` which is also lame.
+ */
+
+function createWritableStdioStream (fd) {
+  var stream;
+  var tty_wrap = process.binding('tty_wrap');
+
+  // Note stream._type is used for test-module-load-list.js
+
+  switch (tty_wrap.guessHandleType(fd)) {
+    case 'TTY':
+      stream = new tty.WriteStream(fd);
+      stream._type = 'tty';
+
+      // Hack to have stream not keep the event loop alive.
+      // See https://github.com/joyent/node/issues/1726
+      if (stream._handle && stream._handle.unref) {
+        stream._handle.unref();
+      }
+      break;
+
+    case 'FILE':
+      var fs = __webpack_require__(747);
+      stream = new fs.SyncWriteStream(fd, { autoClose: false });
+      stream._type = 'fs';
+      break;
+
+    case 'PIPE':
+    case 'TCP':
+      var net = __webpack_require__(631);
+      stream = new net.Socket({
+        fd: fd,
+        readable: false,
+        writable: true
+      });
+
+      // FIXME Should probably have an option in net.Socket to create a
+      // stream from an existing fd which is writable only. But for now
+      // we'll just add this hack and set the `readable` member to false.
+      // Test: ./node test/fixtures/echo.js < /etc/passwd
+      stream.readable = false;
+      stream.read = null;
+      stream._type = 'pipe';
+
+      // FIXME Hack to have stream not keep the event loop alive.
+      // See https://github.com/joyent/node/issues/1726
+      if (stream._handle && stream._handle.unref) {
+        stream._handle.unref();
+      }
+      break;
+
+    default:
+      // Probably an error on in uv_guess_handle()
+      throw new Error('Implement me. Unknown stream file type!');
+  }
+
+  // For supporting legacy API we put the FD here.
+  stream.fd = fd;
+
+  stream._isStdio = true;
+
+  return stream;
+}
+
+/**
+ * Init logic for `debug` instances.
+ *
+ * Create a new `inspectOpts` object in case `useColors` is set
+ * differently for a particular `debug` instance.
+ */
+
+function init (debug) {
+  debug.inspectOpts = {};
+
+  var keys = Object.keys(exports.inspectOpts);
+  for (var i = 0; i < keys.length; i++) {
+    debug.inspectOpts[keys[i]] = exports.inspectOpts[keys[i]];
+  }
+}
+
+/**
+ * Enable namespaces listed in `process.env.DEBUG` initially.
+ */
+
+exports.enable(load());
+
+
+/***/ }),
+
 /***/ 280:
 /***/ (function(module) {
 
@@ -3161,6 +3468,165 @@ function register (state, name, method, options) {
         return registered.hook.bind(null, method, options)
       }, method)()
     })
+}
+
+
+/***/ }),
+
+/***/ 290:
+/***/ (function(module) {
+
+/**
+ * Helpers.
+ */
+
+var s = 1000;
+var m = s * 60;
+var h = m * 60;
+var d = h * 24;
+var y = d * 365.25;
+
+/**
+ * Parse or format the given `val`.
+ *
+ * Options:
+ *
+ *  - `long` verbose formatting [false]
+ *
+ * @param {String|Number} val
+ * @param {Object} [options]
+ * @throws {Error} throw an error if val is not a non-empty string or a number
+ * @return {String|Number}
+ * @api public
+ */
+
+module.exports = function(val, options) {
+  options = options || {};
+  var type = typeof val;
+  if (type === 'string' && val.length > 0) {
+    return parse(val);
+  } else if (type === 'number' && isNaN(val) === false) {
+    return options.long ? fmtLong(val) : fmtShort(val);
+  }
+  throw new Error(
+    'val is not a non-empty string or a valid number. val=' +
+      JSON.stringify(val)
+  );
+};
+
+/**
+ * Parse the given `str` and return milliseconds.
+ *
+ * @param {String} str
+ * @return {Number}
+ * @api private
+ */
+
+function parse(str) {
+  str = String(str);
+  if (str.length > 100) {
+    return;
+  }
+  var match = /^((?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|years?|yrs?|y)?$/i.exec(
+    str
+  );
+  if (!match) {
+    return;
+  }
+  var n = parseFloat(match[1]);
+  var type = (match[2] || 'ms').toLowerCase();
+  switch (type) {
+    case 'years':
+    case 'year':
+    case 'yrs':
+    case 'yr':
+    case 'y':
+      return n * y;
+    case 'days':
+    case 'day':
+    case 'd':
+      return n * d;
+    case 'hours':
+    case 'hour':
+    case 'hrs':
+    case 'hr':
+    case 'h':
+      return n * h;
+    case 'minutes':
+    case 'minute':
+    case 'mins':
+    case 'min':
+    case 'm':
+      return n * m;
+    case 'seconds':
+    case 'second':
+    case 'secs':
+    case 'sec':
+    case 's':
+      return n * s;
+    case 'milliseconds':
+    case 'millisecond':
+    case 'msecs':
+    case 'msec':
+    case 'ms':
+      return n;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Short format for `ms`.
+ *
+ * @param {Number} ms
+ * @return {String}
+ * @api private
+ */
+
+function fmtShort(ms) {
+  if (ms >= d) {
+    return Math.round(ms / d) + 'd';
+  }
+  if (ms >= h) {
+    return Math.round(ms / h) + 'h';
+  }
+  if (ms >= m) {
+    return Math.round(ms / m) + 'm';
+  }
+  if (ms >= s) {
+    return Math.round(ms / s) + 's';
+  }
+  return ms + 'ms';
+}
+
+/**
+ * Long format for `ms`.
+ *
+ * @param {Number} ms
+ * @return {String}
+ * @api private
+ */
+
+function fmtLong(ms) {
+  return plural(ms, d, 'day') ||
+    plural(ms, h, 'hour') ||
+    plural(ms, m, 'minute') ||
+    plural(ms, s, 'second') ||
+    ms + ' ms';
+}
+
+/**
+ * Pluralization helper.
+ */
+
+function plural(ms, n, name) {
+  if (ms < n) {
+    return;
+  }
+  if (ms < n * 1.5) {
+    return Math.floor(ms / n) + ' ' + name;
+  }
+  return Math.ceil(ms / n) + ' ' + name + 's';
 }
 
 
@@ -3345,6 +3811,13 @@ module.exports = __webpack_require__(418);
 /***/ (function(module) {
 
 module.exports = require("assert");
+
+/***/ }),
+
+/***/ 365:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+module.exports = __webpack_require__(701);
 
 /***/ }),
 
@@ -6029,6 +6502,51 @@ function escape(s) {
 
 /***/ }),
 
+/***/ 432:
+/***/ (function() {
+
+//
+// A couple of methods that make working with buffers more easy.
+//
+
+Buffer.prototype.getByte = function (offset) {
+  return this[offset];
+};
+
+Buffer.prototype.getSignedByte = function (offset) {
+  return (this[offset] > 127) ? this[offset] - 256 : this[offset];
+};
+
+Buffer.prototype.getShort = function (offset, bigEndian) {
+  var shortVal = (bigEndian) ? (this[offset] << 8) + this[offset + 1] : (this[offset + 1] << 8) + this[offset];
+  return (shortVal < 0) ? shortVal + 65536 : shortVal;
+};
+
+Buffer.prototype.getSignedShort = function (offset, bigEndian) {
+  var shortVal = (bigEndian) ? (this[offset] << 8) + this[offset + 1] : (this[offset + 1] << 8) + this[offset];
+  return (shortVal > 32767) ? shortVal - 65536 : shortVal;
+};
+
+Buffer.prototype.getLong = function (offset, bigEndian) {
+  var longVal = (bigEndian) ? (((((this[offset] << 8) + this[offset + 1]) << 8) + this[offset + 2]) << 8) + this[offset + 3] : (((((this[offset + 3] << 8) + this[offset + 2]) << 8) + this[offset + 1]) << 8) + this[offset];
+  return (longVal < 0) ? longVal + 4294967296 : longVal;
+};
+
+Buffer.prototype.getSignedLong = function (offset, bigEndian) {
+  var longVal = (bigEndian) ? (((((this[offset] << 8) + this[offset + 1]) << 8) + this[offset + 2]) << 8) + this[offset + 3] : (((((this[offset + 3] << 8) + this[offset + 2]) << 8) + this[offset + 1]) << 8) + this[offset];
+  return (longVal > 2147483647) ? longVal - 4294967296 : longVal;
+};
+
+Buffer.prototype.getString = function (offset, length) {
+  var string = [];
+  for (var i = offset; i < offset + length; i++) {
+    string.push(String.fromCharCode(this[i]));
+  }
+  return string.join('');
+};
+
+/***/ }),
+
 /***/ 444:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -8100,6 +8618,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(__webpack_require__(470));
 const fs = __importStar(__webpack_require__(747));
+const exif_1 = __webpack_require__(365);
 const tinify_1 = __importDefault(__webpack_require__(82));
 const bytes_1 = __importDefault(__webpack_require__(63));
 class Image {
@@ -8108,18 +8627,41 @@ class Image {
     }
     compress() {
         return __awaiter(this, void 0, void 0, function* () {
-            core.debug(`[${this.filename}] Before: ${bytes_1.default.format(this.getSize())}`);
+            yield this.logInfo('Before');
             this.source = tinify_1.default.fromFile(this.filename);
-            return this.source.toFile(this.filename).then(() => {
-                core.debug(`[${this.filename}] After: ${bytes_1.default.format(this.getSize())}`);
-            });
+            return this.source
+                .toFile(this.filename)
+                .then(() => __awaiter(this, void 0, void 0, function* () { return this.logInfo('After'); }));
         });
     }
     getFilename() {
         return this.filename;
     }
+    getExif() {
+        return __awaiter(this, void 0, void 0, function* () {
+            return new Promise((resolve, reject) => {
+                new exif_1.ExifImage({ image: this.filename }, function (error, exifData) {
+                    if (error) {
+                        reject(error);
+                    }
+                    else {
+                        resolve(exifData);
+                    }
+                });
+            });
+        });
+    }
     getSize() {
         return fs.statSync(this.filename).size;
+    }
+    logInfo(message) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return this.getExif().then(exifData => {
+                const size = bytes_1.default.format(this.getSize());
+                const exif = JSON.stringify(exifData, null, 4);
+                core.debug(`[${this.filename}] ${message}: ${size}\n${exif}`);
+            });
+        });
     }
 }
 exports.default = Image;
@@ -8508,9 +9050,13 @@ const image_1 = __importDefault(__webpack_require__(591));
 const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png'];
 class Images {
     constructor() {
-        this.images = new Set();
+        this.filenames = new Set();
+        this.images = [];
     }
     addFile(filename) {
+        if (this.filenames.has(filename)) {
+            return core.debug(`[${filename}] Skipping duplicate file`);
+        }
         const mimeType = mime.getType(filename);
         if (null === mimeType) {
             return core.debug(`[${filename}] Skipping file with unknown mime type`);
@@ -8519,9 +9065,10 @@ class Images {
             return core.debug(`[${filename}] Skipping file with unsupported mime type ${mimeType}`);
         }
         core.debug(`[${filename}] Adding ${mimeType} image`);
-        this.images.add(new image_1.default(filename));
+        this.filenames.add(filename);
+        this.images.push(new image_1.default(filename));
     }
-    all() {
+    [Symbol.iterator]() {
         return this.images.values();
     }
 }
@@ -8585,6 +9132,1078 @@ module.exports = (promise, onFinally) => {
 	);
 };
 
+
+/***/ }),
+
+/***/ 701:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+/*jslint node: true */
+
+
+var assert = __webpack_require__(357);
+var fs = __webpack_require__(747);
+var util = __webpack_require__(669);
+var BufferExtender = __webpack_require__(432); // bad idea
+var debug = __webpack_require__(790)('exif');
+
+var DEFAULT_MAX_ENTRIES=128;
+
+/**
+ * Represents an image with Exif information. When instantiating it you have to
+ * provide an image and a callback function which is called once all metadata
+ * is extracted from the image.
+ *
+ * Available options are:
+ *  - image The image to get Exif data from can be either a filesystem path or
+ *          a Buffer.
+ *  - tiffOffsets  (boolean) an object named "offsets" is added to exifData 
+ *          and contains lot of offsets needed to get thumbnail and other things. 
+ *  - fixThumbnailOffset:  node-exif corrects the thumbnail offset in order to have an offset from the start of the buffer/file.
+ *  - maxEntries: Specifies the maximum entries to be parsed
+ *  - ifd0MaxEntries
+ *  - ifd1MaxEntries
+ *  - maxGpsEntries
+ *  - maxInteroperabilityEntries
+ *  - agfaMaxEntries 
+ *  - epsonMaxEntries
+ *  - fujifilmMaxEntries
+ *  - olympusMaxEntries
+ *  - panasonicMaxEntries
+ *  - sanyoMaxEntries
+ *  - noPadding
+ *
+ * If you don't set the image field, you might call  exifImage.loadImage(image, callback) to get exif datas. 
+ *
+ * @param options Configuration options as described above
+ * @param callback Function to call when data is extracted or an error occurred
+ * @return Nothing of importance, calls the specified callback function instead
+ */
+function ExifImage (options, callback) {
+  if (!(this instanceof ExifImage)) {
+    if (typeof(options)==="string") {
+      options = {
+          image: options
+      }
+    }
+
+    assert(typeof(options)==="object", "Invalid options object");
+    
+    var exifImage = new ExifImage(options, function(error, data) {
+      if (error) {
+        return callback(error);
+      }
+      
+      callback(null, data, options.image);      
+    });
+    
+    return exifImage;
+  }
+
+  if (typeof(options)==="string") {
+    options= {
+        image: options
+    }
+  } else if (options instanceof Buffer) {
+    options= {
+        image: options
+    }
+  }
+  
+  var ops={};
+  if (options) {
+    for(var k in options) {
+      ops[k]=options[k];
+    }
+  }
+  this.options=ops;
+
+  // Default option values
+  ["ifd0MaxEntries", "ifd1MaxEntries", "maxGpsEntries", "maxInteroperabilityEntries", "agfaMaxEntries", "epsonMaxEntries", 
+     "fujifilmMaxEntries", "olympusMaxEntries", "panasonicMaxEntries", "sanyoMaxEntries"].forEach(function(p) {
+       if (ops[p]===undefined) {
+         ops[p]=DEFAULT_MAX_ENTRIES;
+       }
+     });
+
+  this.exifData = {
+    image : {},                 // Information about the main image
+    thumbnail : {},             // Information about the thumbnail
+    exif : {},                  // Exif information
+    gps : {},                   // GPS information
+    interoperability: {},       // Exif Interoperability information
+    makernote : {}              // Makernote information
+  };
+   
+  this.offsets={};
+  if (ops.tiffOffsets) {
+    exifData.offsets=offsets;
+  }
+  
+  debug("New ExifImage options=",options);
+
+  if (!ops.image) {
+    // If options image is not specified, the developper must call loadImage() to parse the image.
+//    callback(new Error('You have to provide an image, it is pretty hard to extract Exif data from nothing...'));
+    return;
+  }
+
+  if (typeof callback !== 'function') {
+    throw new Error('You have to provide a callback function.');
+  }
+ 
+  var self=this;
+  setImmediate(function() {
+    self.loadImage(ops.image, function (error, exifData) {
+      if (error) {
+        return callback(error);
+      }
+    
+      callback(null, exifData, ops.image);
+    });
+  });
+}
+
+ExifImage.ExifImage=ExifImage;
+
+module.exports = ExifImage;
+
+/**
+ * Load image and parse exifDatas
+ *
+ * @param [String|Buffer] image the image
+ * @param callback a callback which is called when exif datas are parsed.
+ * @return Nothing
+ */
+ExifImage.prototype.loadImage = function (image, callback) {
+  assert(typeof(callback)==="function", "Callback must be a function");
+  
+  var self = this;
+
+  debug("loadImage image=", image);
+  
+  if (image.constructor.name === 'Buffer') {
+    this.processImage("Buffer", image, callback);
+    return;
+  }
+  
+  if (image.constructor.name === 'String') {
+    fs.readFile(image, function (error, data) {
+      if (error) {
+        callback(new Error('Encountered the following error while trying to read given image: '+error));
+        return;
+      }
+
+      self.processImage("File: "+image, data, callback);
+    });
+    return;
+  }
+
+  callback(new Error('Given image is neither a buffer nor a file, please provide one of these.'));
+};
+
+ExifImage.prototype.processImage = function (source, data, callback) {
+  assert(typeof(source)==="string", "Source must be a string");
+  assert(typeof(callback)==="function", "Callback must be a function");
+  
+  var offset = 0;
+
+  if (data[offset++] != 0xFF || data[offset++] != 0xD8) {
+    var e=new Error('The given image is not a JPEG and thus unsupported right now.');
+    e.source=source;
+    e.code="NOT_A_JPEG";
+    callback(e);
+    return;
+  }
+
+  this.imageType = 'JPEG';
+
+  while (offset < data.length) {
+
+    if (data[offset++] != 0xFF) {
+      break;
+    }
+
+    if (data[offset++] == 0xE1) {
+      try {
+        this.extractExifData(data, offset + 2, data.getShort(offset, true) - 2);
+
+      } catch (error) {
+        error.code="PARSING_ERROR";
+        error.source=source;        
+
+        debug("Extract exif data error source=", source, "offset=", offset, "error=",error);
+        
+        callback(error);
+        return;
+      }
+      
+      debug("Extract exif data success source=", source, "exifData=",this.exifData);
+
+      callback(null, this.exifData);
+      return;
+    }
+
+    offset += data.getShort(offset, true);
+  }
+
+  var e2=new Error('No Exif segment found in the given image.');
+  e2.source=source;
+  e2.code="NO_EXIF_SEGMENT";
+  
+  callback(e2);
+};
+
+ExifImage.prototype.extractExifData = function (data, start, length) {
+
+  var exifData=this.exifData;
+  var tiffOffset = start + 6;
+  var ifdOffset, numberOfEntries;
+  var noPadding = (this.options.noPadding!==false);
+  
+  this.offsets.tiff=tiffOffset;
+
+  // Exif data always starts with Exif\0\0
+  if (data.toString('utf8', start, tiffOffset) != 'Exif\0\0') {
+    throw new Error('The Exif data is not valid.');
+  }
+
+  // After the Exif start we either have 0x4949 if the following data is
+  // stored in big endian or 0x4D4D if it is stored in little endian
+  if (data.getShort(tiffOffset) == 0x4949) {
+    this.isBigEndian = false;
+    
+  } else if (data.getShort(tiffOffset) == 0x4D4D) {
+    this.isBigEndian = true;
+    
+  } else {
+    throw new Error('Invalid TIFF data! Expected 0x4949 or 0x4D4D at offset '+(tiffOffset)+' but found 0x'+data[tiffOffset].toString(16).toUpperCase()+data[tiffOffset + 1].toString(16).toUpperCase()+".");
+  }
+
+  debug("BigEndian=",this.isBigEndian);
+  
+  // Valid TIFF headers always have 0x002A here
+  if (data.getShort(tiffOffset + 2, this.isBigEndian) != 0x002A) {
+    var expected = (this.isBigEndian) ? '0x002A' : '0x2A00';
+    throw new Error('Invalid TIFF data! Expected '+expected+' at offset '+(tiffOffset + 2)+' but found 0x'+data[tiffOffset + 2].toString(16).toUpperCase()+data[tiffOffset + 3].toString(16).toUpperCase()+".");
+  }
+
+  /********************************* IFD0 **********************************/
+
+  // Offset to IFD0 which is always followed by two bytes with the amount of
+  // entries in this IFD
+  ifdOffset = tiffOffset + data.getLong(tiffOffset + 4, this.isBigEndian);
+  this.offsets.ifd0=ifdOffset;
+  
+  numberOfEntries = data.getShort(ifdOffset, this.isBigEndian);
+  if (this.options.ifd0MaxEntries) {
+    numberOfEntries=Math.min(numberOfEntries, this.options.ifd0MaxEntries);
+  }
+
+  debug("IFD0 ifdOffset=",ifdOffset, "numberOfEntries=", numberOfEntries);
+
+  // Each IFD entry consists of 12 bytes which we loop through and extract
+  // the data from
+  for (var i = 0; i < numberOfEntries; i++) {
+    var exifEntry = this.extractExifEntry(data, (ifdOffset + 2 + (i * 12)), tiffOffset, this.isBigEndian, ExifImage.TAGS.exif);
+    if (!exifEntry) {
+      continue;
+    }
+    
+    if (exifEntry.tagId===0xEA1C && noPadding) {
+      continue;
+    }
+    
+    exifData.image[exifEntry.tagName] = exifEntry.value;
+  }
+
+  debug("IFD0 parsed", exifData.image);
+
+  /********************************* IFD1 **********************************/
+
+  // Check if there is an offset for IFD1. If so it is always followed by two
+  // bytes with the amount of entries in this IFD, if not there is no IFD1
+  var nextIfdOffset = data.getLong(ifdOffset + 2 + (numberOfEntries * 12), this.isBigEndian)
+  if (nextIfdOffset != 0x00000000) {
+    ifdOffset = tiffOffset + nextIfdOffset;
+    this.offsets.ifd1=ifdOffset;
+    numberOfEntries = data.getShort(ifdOffset, this.isBigEndian);
+    if (this.options.ifd1MaxEntries) {
+      numberOfEntries=Math.min(numberOfEntries, this.options.ifd1MaxEntries);
+    }
+
+    debug("IFD1 ifdOffset=",ifdOffset, "numberOfEntries=", numberOfEntries);
+
+    // Each IFD entry consists of 12 bytes which we loop through and extract
+    // the data from
+    for (var i = 0; i < numberOfEntries; i++) {
+      var exifEntry = this.extractExifEntry(data, (ifdOffset + 2 + (i * 12)), tiffOffset, this.isBigEndian, ExifImage.TAGS.exif);
+      if (!exifEntry) {
+        continue;
+      }
+
+      if (exifEntry.tagId===0xEA1C && noPadding) {
+        continue;
+      }
+                  
+      exifData.thumbnail[exifEntry.tagName] = exifEntry.value;
+    }
+    
+    if (this.options.fixThumbnailOffset) {
+      var thumbnailOffset=exifData.thumbnail[ExifImage.TAGS.exif[0x0201]];
+      if (thumbnailOffset) {
+        debug("IFD1 fix thumbnail offset, add=",this.offsets.tiff);
+        
+        exifData.thumbnail[ExifImage.TAGS.exif[0x0201]]+=this.offsets.tiff;
+      }
+    }
+
+    debug("IFD1 parsed", exifData.thumbnail);
+  }
+
+  /******************************* EXIF IFD ********************************/
+
+  // Look for a pointer to the Exif IFD in IFD0 and extract information from
+  // it if available
+  if (exifData.image[ExifImage.TAGS.exif[0x8769]]) {
+
+    ifdOffset = tiffOffset + exifData.image[ExifImage.TAGS.exif[0x8769]];
+    this.offsets.tags=ifdOffset;
+    
+    numberOfEntries = data.getShort(ifdOffset, this.isBigEndian);
+    if (this.options.maxEntries) {
+      numberOfEntries=Math.min(numberOfEntries, this.options.maxEntries);
+    }
+    
+    debug("EXIF IFD ifdOffset=",ifdOffset, "numberOfEntries=", numberOfEntries);
+    
+    // Each IFD entry consists of 12 bytes which we loop through and extract
+    // the data from
+    for (var i = 0; i < numberOfEntries; i++) {
+      var exifEntry = this.extractExifEntry(data, (ifdOffset + 2 + (i * 12)), tiffOffset, this.isBigEndian, ExifImage.TAGS.exif);
+      if (!exifEntry) {
+        continue;
+      }
+
+      if (exifEntry.tagId===0xEA1C && noPadding) {
+        continue;
+      }
+            
+      exifData.exif[exifEntry.tagName] = exifEntry.value;
+    }
+
+    debug("EXIF IFD parsed",exifData.exif);
+  }
+
+  /******************************** GPS IFD ********************************/
+
+  // Look for a pointer to the GPS IFD in IFD0 and extract information from
+  // it if available
+  if (exifData.image[ExifImage.TAGS.exif[0x8825]]) {
+
+    ifdOffset = tiffOffset + exifData.image[ExifImage.TAGS.exif[0x8825]];
+    this.offsets.gps=ifdOffset;
+
+    numberOfEntries = data.getShort(ifdOffset, this.isBigEndian);
+    if (this.options.maxGpsEntries) {
+      numberOfEntries=Math.min(numberOfEntries, this.options.maxGpsEntries);
+    }
+    
+    debug("GPS IFD ifdOffset=", ifdOffset, "numberOfEntries=", numberOfEntries);
+
+    // Each IFD entry consists of 12 bytes which we loop through and extract
+    // the data from
+    for (var i = 0; i < numberOfEntries; i++) {
+      var exifEntry = this.extractExifEntry(data, (ifdOffset + 2 + (i * 12)), tiffOffset, this.isBigEndian, ExifImage.TAGS.gps);
+      if (!exifEntry) {
+        continue;
+      }
+
+      if (exifEntry.tagId===0xEA1C && noPadding) {
+        continue;
+      }
+      
+      exifData.gps[exifEntry.tagName] = exifEntry.value;
+    }
+
+    debug("GPS IFD parsed",exifData.gps);
+   }
+
+  /************************* Interoperability IFD **************************/
+
+  // Look for a pointer to the interoperatbility IFD in the Exif IFD and
+  // extract information from it if available
+  if (exifData.exif[ExifImage.TAGS.exif[0xA005]]) {
+
+    ifdOffset = tiffOffset + exifData.exif[ExifImage.TAGS.exif[0xA005]];
+    this.offsets.interoperability=ifdOffset;
+    
+    numberOfEntries = data.getShort(ifdOffset, this.isBigEndian);
+    if (this.options.maxInteroperabilityEntries) {
+      numberOfEntries=Math.min(numberOfEntries, this.options.maxInteroperabilityEntries);
+    }
+    
+    debug("Interoperability IFD ifdOffset=", ifdOffset, "numberOfEntries=", numberOfEntries);
+
+    // Each IFD entry consists of 12 bytes which we loop through and extract
+    // the data from
+    for (var i = 0; i < numberOfEntries; i++) {
+      var exifEntry = this.extractExifEntry(data, (ifdOffset + 2 + (i * 12)), tiffOffset, this.isBigEndian, ExifImage.TAGS.exif);
+      if (!exifEntry) {
+        break;
+      }
+
+      if (exifEntry.tagId===0xEA1C && noPadding) {
+        continue;
+      }
+            
+      exifData.interoperability[exifEntry.tagName] = exifEntry.value;
+   }
+
+    debug("Interoperability IFD parsed",exifData.gps);
+  }
+
+  /***************************** Makernote IFD *****************************/
+
+  // Look for Makernote data in the Exif IFD, check which type of proprietary
+  // Makernotes the image contains, load the respective functionality and
+  // start the extraction
+  if (typeof exifData.exif[ExifImage.TAGS.exif[0x927C]] != "undefined") {
+
+    var type;
+    // Check the header to see what kind of Makernote we are dealing with
+    if (exifData.exif[ExifImage.TAGS.exif[0x927C]].getString(0, 7) === "OLYMP\x00\x01" || exifData.exif[ExifImage.TAGS.exif[0x927C]].getString(0, 7) === "OLYMP\x00\x02") {
+      type="olympus"
+
+    } else if (exifData.exif[ExifImage.TAGS.exif[0x927C]].getString(0, 7) === "AGFA \x00\x01") {
+      type="agfa";
+
+    } else if (exifData.exif[ExifImage.TAGS.exif[0x927C]].getString(0, 8) === "EPSON\x00\x01\x00") {
+      type="epson";
+
+    } else if (exifData.exif[ExifImage.TAGS.exif[0x927C]].getString(0, 8) === "FUJIFILM") {
+      type="fujifilm";
+
+    } else if (exifData.exif[ExifImage.TAGS.exif[0x927C]].getString(0, 9) === "Panasonic") {
+      type="panasonic";
+
+    } else if (exifData.exif[ExifImage.TAGS.exif[0x927C]].getString(0, 5) === "SANYO") {
+      type="sanyo";
+    }
+   
+
+    debug("Makernote IFD ifdOffset=", ifdOffset, "type=", type);
+
+    if (type) {
+      var extractMakernotes = __webpack_require__(274).extractMakernotes;
+
+      exifData.makernote = extractMakernotes.call(this, data, this.makernoteOffset, tiffOffset);
+      
+    } else {      
+      // Makernotes are available but the format is not recognized so
+      // an error message is pushed instead, this ain't the best
+      // solution but should do for now
+       exifData.makernote['error'] = 'Unable to extract Makernote information as it is in an unsupported or unrecognized format.';    
+    }
+
+    debug("Makernote IFD parsed",exifData.makernote);
+  }
+};
+
+ExifImage.prototype.extractExifEntry = function (data, entryOffset, tiffOffset, isBigEndian, tags) {
+
+  var entry = {
+    tag : data.slice(entryOffset, entryOffset + 2),
+    tagId : null,
+    tagName : null,
+    format : data.getShort(entryOffset + 2, isBigEndian),
+    components : data.getLong(entryOffset + 4, isBigEndian),
+    valueOffset: null,
+    value : []
+  }
+
+  entry.tagId = entry.tag.getShort(0, isBigEndian);
+
+  // The tagId may correspond to more then one tagName so check which
+  if (tags && tags[entry.tagId] && typeof tags[entry.tagId] == "function") {
+    entry.tagName = tags[entry.tagId].call(this, entry);    
+    if (!entry.tagName) {
+      return false;
+    }
+
+  // The tagId corresponds to exactly one tagName
+  } else if (tags && tags[entry.tagId]) {
+    entry.tagName = tags[entry.tagId];
+    if (entry.tagName===undefined) {
+      return false;
+    }
+
+  // The tagId is not recognized
+  } else {
+    return false;
+  }
+
+  switch (entry.format) {
+
+    case 0x0001: // unsigned byte, 1 byte per component
+      entry.valueOffset = (entry.components <= 4) ? entryOffset + 8 : data.getLong(entryOffset + 8, isBigEndian) + tiffOffset;
+      for (var i = 0; i < entry.components; i++)
+        entry.value.push(data.getByte(entry.valueOffset + i));
+      break;
+
+    case 0x0002: // ascii strings, 1 byte per component
+      entry.valueOffset = (entry.components <= 4) ? entryOffset + 8 : data.getLong(entryOffset + 8, isBigEndian) + tiffOffset;
+      entry.value = data.getString(entry.valueOffset, entry.components);
+      if (entry.value[entry.value.length - 1] === "\u0000") // Trim null terminated strings
+        entry.value = entry.value.substring(0, entry.value.length - 1);
+      break;
+
+    case 0x0003: // unsigned short, 2 byte per component
+      entry.valueOffset = (entry.components <= 2) ? entryOffset + 8 : data.getLong(entryOffset + 8, isBigEndian) + tiffOffset;
+      for (var i = 0; i < entry.components; i++)
+        entry.value.push(data.getShort(entry.valueOffset + i * 2, isBigEndian));
+      break;
+
+    case 0x0004: // unsigned long, 4 byte per component
+      entry.valueOffset = (entry.components == 1) ? entryOffset + 8 : data.getLong(entryOffset + 8, isBigEndian) + tiffOffset;
+      for (var i = 0; i < entry.components; i++)
+        entry.value.push(data.getLong(entry.valueOffset + i * 4, isBigEndian));
+      break;
+
+    case 0x0005: // unsigned rational, 8 byte per component (4 byte numerator and 4 byte denominator)
+      entry.valueOffset = data.getLong(entryOffset + 8, isBigEndian) + tiffOffset;
+      for (var i = 0; i < entry.components; i++)
+        entry.value.push(data.getLong(entry.valueOffset + i * 8, isBigEndian) / data.getLong(entry.valueOffset + i * 8 + 4, isBigEndian));
+      break;
+
+    case 0x0006: // signed byte, 1 byte per component
+      entry.valueOffset = (entry.components <= 4) ? entryOffset + 8 : data.getLong(entryOffset + 8, isBigEndian) + tiffOffset;
+      for (var i = 0; i < entry.components; i++)
+        entry.value.push(data.getSignedByte(entry.valueOffset + i));
+      break;
+
+    case 0x0007: // undefined, 1 byte per component
+      entry.valueOffset = (entry.components <= 4) ? entryOffset + 8 : data.getLong(entryOffset + 8, isBigEndian) + tiffOffset;
+      entry.value.push(data.slice(entry.valueOffset, entry.valueOffset + entry.components));
+      break;
+
+    case 0x0008: // signed short, 2 byte per component
+      entry.valueOffset = (entry.components <= 2) ? entryOffset + 8 : data.getLong(entryOffset + 8, isBigEndian) + tiffOffset;
+      for (var i = 0; i < entry.components; i++)
+        entry.value.push(data.getSignedShort(entry.valueOffset + i * 2, isBigEndian));
+      break;
+
+    case 0x0009: // signed long, 4 byte per component
+      entry.valueOffset = (entry.components == 1) ? entryOffset + 8 : data.getLong(entryOffset + 8, isBigEndian) + tiffOffset;
+      for (var i = 0; i < entry.components; i++)
+        entry.value.push(data.getSignedLong(entry.valueOffset + i * 4, isBigEndian));
+      break;
+
+    case 0x000A: // signed rational, 8 byte per component (4 byte numerator and 4 byte denominator)
+      entry.valueOffset = data.getLong(entryOffset + 8, isBigEndian) + tiffOffset;
+      for (var i = 0; i < entry.components; i++)
+        entry.value.push(data.getSignedLong(entry.valueOffset + i * 8, isBigEndian) / data.getSignedLong(entry.valueOffset + i * 8 + 4, isBigEndian));
+      break;
+
+    default:
+      return false;
+
+  }
+
+  // If this is the Makernote tag save its offset for later use
+  if (entry.tagName === "MakerNote") {
+    this.offsets.makernoteOffset = entry.valueOffset;
+  }
+
+  // If the value array has only one element we don't need an array
+  if (entry.value.length == 1) {
+    entry.value = entry.value[0];
+  }
+
+  return entry;
+};
+
+/**
+ * Comprehensive list of TIFF and Exif tags found on
+ * http://www.sno.phy.queensu.ca/~phil/exiftool/TagNames/EXIF.html
+ */
+ExifImage.TAGS = {
+
+  // Exif tags
+  exif : {
+
+    0x0001 : "InteropIndex",
+    0x0002 : "InteropVersion",
+    0x000B : "ProcessingSoftware",
+    0x00FE : "SubfileType",
+    0x00FF : "OldSubfileType",
+    0x0100 : "ImageWidth",
+    0x0101 : "ImageHeight",
+    0x0102 : "BitsPerSample",
+    0x0103 : "Compression",
+    0x0106 : "PhotometricInterpretation",
+    0x0107 : "Thresholding",
+    0x0108 : "CellWidth",
+    0x0109 : "CellLength",
+    0x010A : "FillOrder",
+    0x010D : "DocumentName",
+    0x010E : "ImageDescription",
+    0x010F : "Make",
+    0x0110 : "Model",
+    0x0111 : "StripOffsets",
+    0x0112 : "Orientation",
+    0x0115 : "SamplesPerPixel",
+    0x0116 : "RowsPerStrip",
+    0x0117 : "StripByteCounts",
+    0x0118 : "MinSampleValue",
+    0x0119 : "MaxSampleValue",
+    0x011A : "XResolution",
+    0x011B : "YResolution",
+    0x011C : "PlanarConfiguration",
+    0x011D : "PageName",
+    0x011E : "XPosition",
+    0x011F : "YPosition",
+    0x0120 : "FreeOffsets",
+    0x0121 : "FreeByteCounts",
+    0x0122 : "GrayResponseUnit",
+    0x0123 : "GrayResponseCurve",
+    0x0124 : "T4Options",
+    0x0125 : "T6Options",
+    0x0128 : "ResolutionUnit",
+    0x0129 : "PageNumber",
+    0x012C : "ColorResponseUnit",
+    0x012D : "TransferFunction",
+    0x0131 : "Software",
+    0x0132 : "ModifyDate",
+    0x013B : "Artist",
+    0x013C : "HostComputer",
+    0x013D : "Predictor",
+    0x013E : "WhitePoint",
+    0x013F : "PrimaryChromaticities",
+    0x0140 : "ColorMap",
+    0x0141 : "HalftoneHints",
+    0x0142 : "TileWidth",
+    0x0143 : "TileLength",
+    0x0144 : "TileOffsets",
+    0x0145 : "TileByteCounts",
+    0x0146 : "BadFaxLines",
+    0x0147 : "CleanFaxData",
+    0x0148 : "ConsecutiveBadFaxLines",
+    0x014A : "SubIFD",
+    0x014C : "InkSet",
+    0x014D : "InkNames",
+    0x014E : "NumberofInks",
+    0x0150 : "DotRange",
+    0x0151 : "TargetPrinter",
+    0x0152 : "ExtraSamples",
+    0x0153 : "SampleFormat",
+    0x0154 : "SMinSampleValue",
+    0x0155 : "SMaxSampleValue",
+    0x0156 : "TransferRange",
+    0x0157 : "ClipPath",
+    0x0158 : "XClipPathUnits",
+    0x0159 : "YClipPathUnits",
+    0x015A : "Indexed",
+    0x015B : "JPEGTables",
+    0x015F : "OPIProxy",
+    0x0190 : "GlobalParametersIFD",
+    0x0191 : "ProfileType",
+    0x0192 : "FaxProfile",
+    0x0193 : "CodingMethods",
+    0x0194 : "VersionYear",
+    0x0195 : "ModeNumber",
+    0x01B1 : "Decode",
+    0x01B2 : "DefaultImageColor",
+    0x01B3 : "T82Options",
+    0x01B5 : "JPEGTables",
+    0x0200 : "JPEGProc",
+    0x0201 : "ThumbnailOffset",
+    0x0202 : "ThumbnailLength",
+    0x0203 : "JPEGRestartInterval",
+    0x0205 : "JPEGLosslessPredictors",
+    0x0206 : "JPEGPointTransforms",
+    0x0207 : "JPEGQTables",
+    0x0208 : "JPEGDCTables",
+    0x0209 : "JPEGACTables",
+    0x0211 : "YCbCrCoefficients",
+    0x0212 : "YCbCrSubSampling",
+    0x0213 : "YCbCrPositioning",
+    0x0214 : "ReferenceBlackWhite",
+    0x022F : "StripRowCounts",
+    0x02BC : "ApplicationNotes",
+    0x03E7 : "USPTOMiscellaneous",
+    0x1000 : "RelatedImageFileFormat",
+    0x1001 : "RelatedImageWidth",
+    0x1002 : "RelatedImageHeight",
+    0x4746 : "Rating",
+    0x4747 : "XP_DIP_XML",
+    0x4748 : "StitchInfo",
+    0x4749 : "RatingPercent",
+    0x800D : "ImageID",
+    0x80A3 : "WangTag1",
+    0x80A4 : "WangAnnotation",
+    0x80A5 : "WangTag3",
+    0x80A6 : "WangTag4",
+    0x80E3 : "Matteing",
+    0x80E4 : "DataType",
+    0x80E5 : "ImageDepth",
+    0x80E6 : "TileDepth",
+    0x827D : "Model2",
+    0x828D : "CFARepeatPatternDim",
+    0x828E : "CFAPattern2",
+    0x828F : "BatteryLevel",
+    0x8290 : "KodakIFD",
+    0x8298 : "Copyright",
+    0x829A : "ExposureTime",
+    0x829D : "FNumber",
+    0x82A5 : "MDFileTag",
+    0x82A6 : "MDScalePixel",
+    0x82A7 : "MDColorTable",
+    0x82A8 : "MDLabName",
+    0x82A9 : "MDSampleInfo",
+    0x82AA : "MDPrepDate",
+    0x82AB : "MDPrepTime",
+    0x82AC : "MDFileUnits",
+    0x830E : "PixelScale",
+    0x8335 : "AdventScale",
+    0x8336 : "AdventRevision",
+    0x835C : "UIC1Tag",
+    0x835D : "UIC2Tag",
+    0x835E : "UIC3Tag",
+    0x835F : "UIC4Tag",
+    0x83BB : "IPTC-NAA",
+    0x847E : "IntergraphPacketData",
+    0x847F : "IntergraphFlagRegisters",
+    0x8480 : "IntergraphMatrix",
+    0x8481 : "INGRReserved",
+    0x8482 : "ModelTiePoint",
+    0x84E0 : "Site",
+    0x84E1 : "ColorSequence",
+    0x84E2 : "IT8Header",
+    0x84E3 : "RasterPadding",
+    0x84E4 : "BitsPerRunLength",
+    0x84E5 : "BitsPerExtendedRunLength",
+    0x84E6 : "ColorTable",
+    0x84E7 : "ImageColorIndicator",
+    0x84E8 : "BackgroundColorIndicator",
+    0x84E9 : "ImageColorValue",
+    0x84EA : "BackgroundColorValue",
+    0x84EB : "PixelIntensityRange",
+    0x84EC : "TransparencyIndicator",
+    0x84ED : "ColorCharacterization",
+    0x84EE : "HCUsage",
+    0x84EF : "TrapIndicator",
+    0x84F0 : "CMYKEquivalent",
+    0x8546 : "SEMInfo",
+    0x8568 : "AFCP_IPTC",
+    0x85B8 : "PixelMagicJBIGOptions",
+    0x85D8 : "ModelTransform",
+    0x8602 : "WB_GRGBLevels",
+    0x8606 : "LeafData",
+    0x8649 : "PhotoshopSettings",
+    0x8769 : "ExifOffset",
+    0x8773 : "ICC_Profile",
+    0x877F : "TIFF_FXExtensions",
+    0x8780 : "MultiProfiles",
+    0x8781 : "SharedData",
+    0x8782 : "T88Options",
+    0x87AC : "ImageLayer",
+    0x87AF : "GeoTiffDirectory",
+    0x87B0 : "GeoTiffDoubleParams",
+    0x87B1 : "GeoTiffAsciiParams",
+    0x8822 : "ExposureProgram",
+    0x8824 : "SpectralSensitivity",
+    0x8825 : "GPSInfo",
+    0x8827 : "ISO",
+    0x8828 : "Opto-ElectricConvFactor",
+    0x8829 : "Interlace",
+    0x882A : "TimeZoneOffset",
+    0x882B : "SelfTimerMode",
+    0x8830 : "SensitivityType",
+    0x8831 : "StandardOutputSensitivity",
+    0x8832 : "RecommendedExposureIndex",
+    0x8833 : "ISOSpeed",
+    0x8834 : "ISOSpeedLatitudeyyy",
+    0x8835 : "ISOSpeedLatitudezzz",
+    0x885C : "FaxRecvParams",
+    0x885D : "FaxSubAddress",
+    0x885E : "FaxRecvTime",
+    0x888A : "LeafSubIFD",
+    0x9000 : "ExifVersion",
+    0x9003 : "DateTimeOriginal",
+    0x9004 : "CreateDate",
+    0x9101 : "ComponentsConfiguration",
+    0x9102 : "CompressedBitsPerPixel",
+    0x9201 : "ShutterSpeedValue",
+    0x9202 : "ApertureValue",
+    0x9203 : "BrightnessValue",
+    0x9204 : "ExposureCompensation",
+    0x9205 : "MaxApertureValue",
+    0x9206 : "SubjectDistance",
+    0x9207 : "MeteringMode",
+    0x9208 : "LightSource",
+    0x9209 : "Flash",
+    0x920A : "FocalLength",
+    0x920B : "FlashEnergy",
+    0x920C : "SpatialFrequencyResponse",
+    0x920D : "Noise",
+    0x920E : "FocalPlaneXResolution",
+    0x920F : "FocalPlaneYResolution",
+    0x9210 : "FocalPlaneResolutionUnit",
+    0x9211 : "ImageNumber",
+    0x9212 : "SecurityClassification",
+    0x9213 : "ImageHistory",
+    0x9214 : "SubjectArea",
+    0x9215 : "ExposureIndex",
+    0x9216 : "TIFF-EPStandardID",
+    0x9217 : "SensingMethod",
+    0x923A : "CIP3DataFile",
+    0x923B : "CIP3Sheet",
+    0x923C : "CIP3Side",
+    0x923F : "StoNits",
+    0x927C : "MakerNote",
+    0x9286 : "UserComment",
+    0x9290 : "SubSecTime",
+    0x9291 : "SubSecTimeOriginal",
+    0x9292 : "SubSecTimeDigitized",
+    0x932F : "MSDocumentText",
+    0x9330 : "MSPropertySetStorage",
+    0x9331 : "MSDocumentTextPosition",
+    0x935C : "ImageSourceData",
+    0x9C9B : "XPTitle",
+    0x9C9C : "XPComment",
+    0x9C9D : "XPAuthor",
+    0x9C9E : "XPKeywords",
+    0x9C9F : "XPSubject",
+    0xA000 : "FlashpixVersion",
+    0xA001 : "ColorSpace",
+    0xA002 : "ExifImageWidth",
+    0xA003 : "ExifImageHeight",
+    0xA004 : "RelatedSoundFile",
+    0xA005 : "InteropOffset",
+    0xA20B : "FlashEnergy",
+    0xA20C : "SpatialFrequencyResponse",
+    0xA20D : "Noise",
+    0xA20E : "FocalPlaneXResolution",
+    0xA20F : "FocalPlaneYResolution",
+    0xA210 : "FocalPlaneResolutionUnit",
+    0xA211 : "ImageNumber",
+    0xA212 : "SecurityClassification",
+    0xA213 : "ImageHistory",
+    0xA214 : "SubjectLocation",
+    0xA215 : "ExposureIndex",
+    0xA216 : "TIFF-EPStandardID",
+    0xA217 : "SensingMethod",
+    0xA300 : "FileSource",
+    0xA301 : "SceneType",
+    0xA302 : "CFAPattern",
+    0xA401 : "CustomRendered",
+    0xA402 : "ExposureMode",
+    0xA403 : "WhiteBalance",
+    0xA404 : "DigitalZoomRatio",
+    0xA405 : "FocalLengthIn35mmFormat",
+    0xA406 : "SceneCaptureType",
+    0xA407 : "GainControl",
+    0xA408 : "Contrast",
+    0xA409 : "Saturation",
+    0xA40A : "Sharpness",
+    0xA40B : "DeviceSettingDescription",
+    0xA40C : "SubjectDistanceRange",
+    0xA420 : "ImageUniqueID",
+    0xA430 : "OwnerName",
+    0xA431 : "SerialNumber",
+    0xA432 : "LensInfo",
+    0xA433 : "LensMake",
+    0xA434 : "LensModel",
+    0xA435 : "LensSerialNumber",
+    0xA480 : "GDALMetadata",
+    0xA481 : "GDALNoData",
+    0xA500 : "Gamma",
+    0xAFC0 : "ExpandSoftware",
+    0xAFC1 : "ExpandLens",
+    0xAFC2 : "ExpandFilm",
+    0xAFC3 : "ExpandFilterLens",
+    0xAFC4 : "ExpandScanner",
+    0xAFC5 : "ExpandFlashLamp",
+    0xBC01 : "PixelFormat",
+    0xBC02 : "Transformation",
+    0xBC03 : "Uncompressed",
+    0xBC04 : "ImageType",
+    0xBC80 : "ImageWidth",
+    0xBC81 : "ImageHeight",
+    0xBC82 : "WidthResolution",
+    0xBC83 : "HeightResolution",
+    0xBCC0 : "ImageOffset",
+    0xBCC1 : "ImageByteCount",
+    0xBCC2 : "AlphaOffset",
+    0xBCC3 : "AlphaByteCount",
+    0xBCC4 : "ImageDataDiscard",
+    0xBCC5 : "AlphaDataDiscard",
+    0xC427 : "OceScanjobDesc",
+    0xC428 : "OceApplicationSelector",
+    0xC429 : "OceIDNumber",
+    0xC42A : "OceImageLogic",
+    0xC44F : "Annotations",
+    0xC4A5 : "PrintIM",
+    0xC580 : "USPTOOriginalContentType",
+    0xC612 : "DNGVersion",
+    0xC613 : "DNGBackwardVersion",
+    0xC614 : "UniqueCameraModel",
+    0xC615 : "LocalizedCameraModel",
+    0xC616 : "CFAPlaneColor",
+    0xC617 : "CFALayout",
+    0xC618 : "LinearizationTable",
+    0xC619 : "BlackLevelRepeatDim",
+    0xC61A : "BlackLevel",
+    0xC61B : "BlackLevelDeltaH",
+    0xC61C : "BlackLevelDeltaV",
+    0xC61D : "WhiteLevel",
+    0xC61E : "DefaultScale",
+    0xC61F : "DefaultCropOrigin",
+    0xC620 : "DefaultCropSize",
+    0xC621 : "ColorMatrix1",
+    0xC622 : "ColorMatrix2",
+    0xC623 : "CameraCalibration1",
+    0xC624 : "CameraCalibration2",
+    0xC625 : "ReductionMatrix1",
+    0xC626 : "ReductionMatrix2",
+    0xC627 : "AnalogBalance",
+    0xC628 : "AsShotNeutral",
+    0xC629 : "AsShotWhiteXY",
+    0xC62A : "BaselineExposure",
+    0xC62B : "BaselineNoise",
+    0xC62C : "BaselineSharpness",
+    0xC62D : "BayerGreenSplit",
+    0xC62E : "LinearResponseLimit",
+    0xC62F : "CameraSerialNumber",
+    0xC630 : "DNGLensInfo",
+    0xC631 : "ChromaBlurRadius",
+    0xC632 : "AntiAliasStrength",
+    0xC633 : "ShadowScale",
+    0xC634 : "DNGPrivateData",
+    0xC635 : "MakerNoteSafety",
+    0xC640 : "RawImageSegmentation",
+    0xC65A : "CalibrationIlluminant1",
+    0xC65B : "CalibrationIlluminant2",
+    0xC65C : "BestQualityScale",
+    0xC65D : "RawDataUniqueID",
+    0xC660 : "AliasLayerMetadata",
+    0xC68B : "OriginalRawFileName",
+    0xC68C : "OriginalRawFileData",
+    0xC68D : "ActiveArea",
+    0xC68E : "MaskedAreas",
+    0xC68F : "AsShotICCProfile",
+    0xC690 : "AsShotPreProfileMatrix",
+    0xC691 : "CurrentICCProfile",
+    0xC692 : "CurrentPreProfileMatrix",
+    0xC6BF : "ColorimetricReference",
+    0xC6D2 : "PanasonicTitle",
+    0xC6D3 : "PanasonicTitle2",
+    0xC6F3 : "CameraCalibrationSig",
+    0xC6F4 : "ProfileCalibrationSig",
+    0xC6F5 : "ProfileIFD",
+    0xC6F6 : "AsShotProfileName",
+    0xC6F7 : "NoiseReductionApplied",
+    0xC6F8 : "ProfileName",
+    0xC6F9 : "ProfileHueSatMapDims",
+    0xC6FA : "ProfileHueSatMapData1",
+    0xC6FB : "ProfileHueSatMapData2",
+    0xC6FC : "ProfileToneCurve",
+    0xC6FD : "ProfileEmbedPolicy",
+    0xC6FE : "ProfileCopyright",
+    0xC714 : "ForwardMatrix1",
+    0xC715 : "ForwardMatrix2",
+    0xC716 : "PreviewApplicationName",
+    0xC717 : "PreviewApplicationVersion",
+    0xC718 : "PreviewSettingsName",
+    0xC719 : "PreviewSettingsDigest",
+    0xC71A : "PreviewColorSpace",
+    0xC71B : "PreviewDateTime",
+    0xC71C : "RawImageDigest",
+    0xC71D : "OriginalRawFileDigest",
+    0xC71E : "SubTileBlockSize",
+    0xC71F : "RowInterleaveFactor",
+    0xC725 : "ProfileLookTableDims",
+    0xC726 : "ProfileLookTableData",
+    0xC740 : "OpcodeList1",
+    0xC741 : "OpcodeList2",
+    0xC74E : "OpcodeList3",
+    0xC761 : "NoiseProfile",
+    0xC763 : "TimeCodes",
+    0xC764 : "FrameRate",
+    0xC772 : "TStop",
+    0xC789 : "ReelName",
+    0xC791 : "OriginalDefaultFinalSize",
+    0xC792 : "OriginalBestQualitySize",
+    0xC793 : "OriginalDefaultCropSize",
+    0xC7A1 : "CameraLabel",
+    0xC7A3 : "ProfileHueSatMapEncoding",
+    0xC7A4 : "ProfileLookTableEncoding",
+    0xC7A5 : "BaselineExposureOffset",
+    0xC7A6 : "DefaultBlackRender",
+    0xC7A7 : "NewRawImageDigest",
+    0xC7A8 : "RawToPreviewGain",
+    0xC7B5 : "DefaultUserCrop",
+    0xEA1C : "Padding",
+    0xEA1D : "OffsetSchema",
+    0xFDE8 : "OwnerName",
+    0xFDE9 : "SerialNumber",
+    0xFDEA : "Lens",
+    0xFE00 : "KDC_IFD",
+    0xFE4C : "RawFile",
+    0xFE4D : "Converter",
+    0xFE4E : "WhiteBalance",
+    0xFE51 : "Exposure",
+    0xFE52 : "Shadows",
+    0xFE53 : "Brightness",
+    0xFE54 : "Contrast",
+    0xFE55 : "Saturation",
+    0xFE56 : "Sharpness",
+    0xFE57 : "Smoothness",
+    0xFE58 : "MoireFilter"
+
+  },
+
+  // GPS Tags
+  gps : {
+
+    0x0000 : 'GPSVersionID',
+    0x0001 : 'GPSLatitudeRef',
+    0x0002 : 'GPSLatitude',
+    0x0003 : 'GPSLongitudeRef',
+    0x0004 : 'GPSLongitude',
+    0x0005 : 'GPSAltitudeRef',
+    0x0006 : 'GPSAltitude',
+    0x0007 : 'GPSTimeStamp',
+    0x0008 : 'GPSSatellites',
+    0x0009 : 'GPSStatus',
+    0x000A : 'GPSMeasureMode',
+    0x000B : 'GPSDOP',
+    0x000C : 'GPSSpeedRef',
+    0x000D : 'GPSSpeed',
+    0x000E : 'GPSTrackRef',
+    0x000F : 'GPSTrack',
+    0x0010 : 'GPSImgDirectionRef',
+    0x0011 : 'GPSImgDirection',
+    0x0012 : 'GPSMapDatum',
+    0x0013 : 'GPSDestLatitudeRef',
+    0x0014 : 'GPSDestLatitude',
+    0x0015 : 'GPSDestLongitudeRef',
+    0x0016 : 'GPSDestLongitude',
+    0x0017 : 'GPSDestBearingRef',
+    0x0018 : 'GPSDestBearing',
+    0x0019 : 'GPSDestDistanceRef',
+    0x001A : 'GPSDestDistance',
+    0x001B : 'GPSProcessingMethod',
+    0x001C : 'GPSAreaInformation',
+    0x001D : 'GPSDateStamp',
+    0x001E : 'GPSDifferential',
+    0x001F : 'GPSHPositioningError'
+
+  }
+
+};
 
 /***/ }),
 
@@ -8865,6 +10484,23 @@ module.exports = function (x) {
 
 	return x;
 };
+
+
+/***/ }),
+
+/***/ 790:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+/**
+ * Detect Electron renderer process, which is node, but we should
+ * treat as a browser.
+ */
+
+if (typeof process !== 'undefined' && process.type === 'renderer') {
+  module.exports = __webpack_require__(985);
+} else {
+  module.exports = __webpack_require__(275);
+}
 
 
 /***/ }),
@@ -10758,6 +12394,215 @@ exports.restEndpointMethods = restEndpointMethods;
 
 /***/ }),
 
+/***/ 852:
+/***/ (function(module, exports, __webpack_require__) {
+
+
+/**
+ * This is the common logic for both the Node.js and web browser
+ * implementations of `debug()`.
+ *
+ * Expose `debug()` as the module.
+ */
+
+exports = module.exports = createDebug.debug = createDebug['default'] = createDebug;
+exports.coerce = coerce;
+exports.disable = disable;
+exports.enable = enable;
+exports.enabled = enabled;
+exports.humanize = __webpack_require__(290);
+
+/**
+ * The currently active debug mode names, and names to skip.
+ */
+
+exports.names = [];
+exports.skips = [];
+
+/**
+ * Map of special "%n" handling functions, for the debug "format" argument.
+ *
+ * Valid key names are a single, lower or upper-case letter, i.e. "n" and "N".
+ */
+
+exports.formatters = {};
+
+/**
+ * Previous log timestamp.
+ */
+
+var prevTime;
+
+/**
+ * Select a color.
+ * @param {String} namespace
+ * @return {Number}
+ * @api private
+ */
+
+function selectColor(namespace) {
+  var hash = 0, i;
+
+  for (i in namespace) {
+    hash  = ((hash << 5) - hash) + namespace.charCodeAt(i);
+    hash |= 0; // Convert to 32bit integer
+  }
+
+  return exports.colors[Math.abs(hash) % exports.colors.length];
+}
+
+/**
+ * Create a debugger with the given `namespace`.
+ *
+ * @param {String} namespace
+ * @return {Function}
+ * @api public
+ */
+
+function createDebug(namespace) {
+
+  function debug() {
+    // disabled?
+    if (!debug.enabled) return;
+
+    var self = debug;
+
+    // set `diff` timestamp
+    var curr = +new Date();
+    var ms = curr - (prevTime || curr);
+    self.diff = ms;
+    self.prev = prevTime;
+    self.curr = curr;
+    prevTime = curr;
+
+    // turn the `arguments` into a proper Array
+    var args = new Array(arguments.length);
+    for (var i = 0; i < args.length; i++) {
+      args[i] = arguments[i];
+    }
+
+    args[0] = exports.coerce(args[0]);
+
+    if ('string' !== typeof args[0]) {
+      // anything else let's inspect with %O
+      args.unshift('%O');
+    }
+
+    // apply any `formatters` transformations
+    var index = 0;
+    args[0] = args[0].replace(/%([a-zA-Z%])/g, function(match, format) {
+      // if we encounter an escaped % then don't increase the array index
+      if (match === '%%') return match;
+      index++;
+      var formatter = exports.formatters[format];
+      if ('function' === typeof formatter) {
+        var val = args[index];
+        match = formatter.call(self, val);
+
+        // now we need to remove `args[index]` since it's inlined in the `format`
+        args.splice(index, 1);
+        index--;
+      }
+      return match;
+    });
+
+    // apply env-specific formatting (colors, etc.)
+    exports.formatArgs.call(self, args);
+
+    var logFn = debug.log || exports.log || console.log.bind(console);
+    logFn.apply(self, args);
+  }
+
+  debug.namespace = namespace;
+  debug.enabled = exports.enabled(namespace);
+  debug.useColors = exports.useColors();
+  debug.color = selectColor(namespace);
+
+  // env-specific initialization logic for debug instances
+  if ('function' === typeof exports.init) {
+    exports.init(debug);
+  }
+
+  return debug;
+}
+
+/**
+ * Enables a debug mode by namespaces. This can include modes
+ * separated by a colon and wildcards.
+ *
+ * @param {String} namespaces
+ * @api public
+ */
+
+function enable(namespaces) {
+  exports.save(namespaces);
+
+  exports.names = [];
+  exports.skips = [];
+
+  var split = (typeof namespaces === 'string' ? namespaces : '').split(/[\s,]+/);
+  var len = split.length;
+
+  for (var i = 0; i < len; i++) {
+    if (!split[i]) continue; // ignore empty strings
+    namespaces = split[i].replace(/\*/g, '.*?');
+    if (namespaces[0] === '-') {
+      exports.skips.push(new RegExp('^' + namespaces.substr(1) + '$'));
+    } else {
+      exports.names.push(new RegExp('^' + namespaces + '$'));
+    }
+  }
+}
+
+/**
+ * Disable debug output.
+ *
+ * @api public
+ */
+
+function disable() {
+  exports.enable('');
+}
+
+/**
+ * Returns true if the given mode name is enabled, false otherwise.
+ *
+ * @param {String} name
+ * @return {Boolean}
+ * @api public
+ */
+
+function enabled(name) {
+  var i, len;
+  for (i = 0, len = exports.skips.length; i < len; i++) {
+    if (exports.skips[i].test(name)) {
+      return false;
+    }
+  }
+  for (i = 0, len = exports.names.length; i < len; i++) {
+    if (exports.names[i].test(name)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Coerce `val`.
+ *
+ * @param {Mixed} val
+ * @return {Mixed}
+ * @api private
+ */
+
+function coerce(val) {
+  if (val instanceof Error) return val.stack || val.message;
+  return val;
+}
+
+
+/***/ }),
+
 /***/ 866:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -10782,6 +12627,13 @@ module.exports = function (str) {
 	);
 };
 
+
+/***/ }),
+
+/***/ 867:
+/***/ (function(module) {
+
+module.exports = require("tty");
 
 /***/ }),
 
@@ -11511,6 +13363,264 @@ function onceStrict (fn) {
 /***/ (function(module) {
 
 module.exports = {"application/prs.cww":["cww"],"application/vnd.1000minds.decision-model+xml":["1km"],"application/vnd.3gpp.pic-bw-large":["plb"],"application/vnd.3gpp.pic-bw-small":["psb"],"application/vnd.3gpp.pic-bw-var":["pvb"],"application/vnd.3gpp2.tcap":["tcap"],"application/vnd.3m.post-it-notes":["pwn"],"application/vnd.accpac.simply.aso":["aso"],"application/vnd.accpac.simply.imp":["imp"],"application/vnd.acucobol":["acu"],"application/vnd.acucorp":["atc","acutc"],"application/vnd.adobe.air-application-installer-package+zip":["air"],"application/vnd.adobe.formscentral.fcdt":["fcdt"],"application/vnd.adobe.fxp":["fxp","fxpl"],"application/vnd.adobe.xdp+xml":["xdp"],"application/vnd.adobe.xfdf":["xfdf"],"application/vnd.ahead.space":["ahead"],"application/vnd.airzip.filesecure.azf":["azf"],"application/vnd.airzip.filesecure.azs":["azs"],"application/vnd.amazon.ebook":["azw"],"application/vnd.americandynamics.acc":["acc"],"application/vnd.amiga.ami":["ami"],"application/vnd.android.package-archive":["apk"],"application/vnd.anser-web-certificate-issue-initiation":["cii"],"application/vnd.anser-web-funds-transfer-initiation":["fti"],"application/vnd.antix.game-component":["atx"],"application/vnd.apple.installer+xml":["mpkg"],"application/vnd.apple.keynote":["keynote"],"application/vnd.apple.mpegurl":["m3u8"],"application/vnd.apple.numbers":["numbers"],"application/vnd.apple.pages":["pages"],"application/vnd.apple.pkpass":["pkpass"],"application/vnd.aristanetworks.swi":["swi"],"application/vnd.astraea-software.iota":["iota"],"application/vnd.audiograph":["aep"],"application/vnd.balsamiq.bmml+xml":["bmml"],"application/vnd.blueice.multipass":["mpm"],"application/vnd.bmi":["bmi"],"application/vnd.businessobjects":["rep"],"application/vnd.chemdraw+xml":["cdxml"],"application/vnd.chipnuts.karaoke-mmd":["mmd"],"application/vnd.cinderella":["cdy"],"application/vnd.citationstyles.style+xml":["csl"],"application/vnd.claymore":["cla"],"application/vnd.cloanto.rp9":["rp9"],"application/vnd.clonk.c4group":["c4g","c4d","c4f","c4p","c4u"],"application/vnd.cluetrust.cartomobile-config":["c11amc"],"application/vnd.cluetrust.cartomobile-config-pkg":["c11amz"],"application/vnd.commonspace":["csp"],"application/vnd.contact.cmsg":["cdbcmsg"],"application/vnd.cosmocaller":["cmc"],"application/vnd.crick.clicker":["clkx"],"application/vnd.crick.clicker.keyboard":["clkk"],"application/vnd.crick.clicker.palette":["clkp"],"application/vnd.crick.clicker.template":["clkt"],"application/vnd.crick.clicker.wordbank":["clkw"],"application/vnd.criticaltools.wbs+xml":["wbs"],"application/vnd.ctc-posml":["pml"],"application/vnd.cups-ppd":["ppd"],"application/vnd.curl.car":["car"],"application/vnd.curl.pcurl":["pcurl"],"application/vnd.dart":["dart"],"application/vnd.data-vision.rdz":["rdz"],"application/vnd.dece.data":["uvf","uvvf","uvd","uvvd"],"application/vnd.dece.ttml+xml":["uvt","uvvt"],"application/vnd.dece.unspecified":["uvx","uvvx"],"application/vnd.dece.zip":["uvz","uvvz"],"application/vnd.denovo.fcselayout-link":["fe_launch"],"application/vnd.dna":["dna"],"application/vnd.dolby.mlp":["mlp"],"application/vnd.dpgraph":["dpg"],"application/vnd.dreamfactory":["dfac"],"application/vnd.ds-keypoint":["kpxx"],"application/vnd.dvb.ait":["ait"],"application/vnd.dvb.service":["svc"],"application/vnd.dynageo":["geo"],"application/vnd.ecowin.chart":["mag"],"application/vnd.enliven":["nml"],"application/vnd.epson.esf":["esf"],"application/vnd.epson.msf":["msf"],"application/vnd.epson.quickanime":["qam"],"application/vnd.epson.salt":["slt"],"application/vnd.epson.ssf":["ssf"],"application/vnd.eszigno3+xml":["es3","et3"],"application/vnd.ezpix-album":["ez2"],"application/vnd.ezpix-package":["ez3"],"application/vnd.fdf":["fdf"],"application/vnd.fdsn.mseed":["mseed"],"application/vnd.fdsn.seed":["seed","dataless"],"application/vnd.flographit":["gph"],"application/vnd.fluxtime.clip":["ftc"],"application/vnd.framemaker":["fm","frame","maker","book"],"application/vnd.frogans.fnc":["fnc"],"application/vnd.frogans.ltf":["ltf"],"application/vnd.fsc.weblaunch":["fsc"],"application/vnd.fujitsu.oasys":["oas"],"application/vnd.fujitsu.oasys2":["oa2"],"application/vnd.fujitsu.oasys3":["oa3"],"application/vnd.fujitsu.oasysgp":["fg5"],"application/vnd.fujitsu.oasysprs":["bh2"],"application/vnd.fujixerox.ddd":["ddd"],"application/vnd.fujixerox.docuworks":["xdw"],"application/vnd.fujixerox.docuworks.binder":["xbd"],"application/vnd.fuzzysheet":["fzs"],"application/vnd.genomatix.tuxedo":["txd"],"application/vnd.geogebra.file":["ggb"],"application/vnd.geogebra.tool":["ggt"],"application/vnd.geometry-explorer":["gex","gre"],"application/vnd.geonext":["gxt"],"application/vnd.geoplan":["g2w"],"application/vnd.geospace":["g3w"],"application/vnd.gmx":["gmx"],"application/vnd.google-apps.document":["gdoc"],"application/vnd.google-apps.presentation":["gslides"],"application/vnd.google-apps.spreadsheet":["gsheet"],"application/vnd.google-earth.kml+xml":["kml"],"application/vnd.google-earth.kmz":["kmz"],"application/vnd.grafeq":["gqf","gqs"],"application/vnd.groove-account":["gac"],"application/vnd.groove-help":["ghf"],"application/vnd.groove-identity-message":["gim"],"application/vnd.groove-injector":["grv"],"application/vnd.groove-tool-message":["gtm"],"application/vnd.groove-tool-template":["tpl"],"application/vnd.groove-vcard":["vcg"],"application/vnd.hal+xml":["hal"],"application/vnd.handheld-entertainment+xml":["zmm"],"application/vnd.hbci":["hbci"],"application/vnd.hhe.lesson-player":["les"],"application/vnd.hp-hpgl":["hpgl"],"application/vnd.hp-hpid":["hpid"],"application/vnd.hp-hps":["hps"],"application/vnd.hp-jlyt":["jlt"],"application/vnd.hp-pcl":["pcl"],"application/vnd.hp-pclxl":["pclxl"],"application/vnd.hydrostatix.sof-data":["sfd-hdstx"],"application/vnd.ibm.minipay":["mpy"],"application/vnd.ibm.modcap":["afp","listafp","list3820"],"application/vnd.ibm.rights-management":["irm"],"application/vnd.ibm.secure-container":["sc"],"application/vnd.iccprofile":["icc","icm"],"application/vnd.igloader":["igl"],"application/vnd.immervision-ivp":["ivp"],"application/vnd.immervision-ivu":["ivu"],"application/vnd.insors.igm":["igm"],"application/vnd.intercon.formnet":["xpw","xpx"],"application/vnd.intergeo":["i2g"],"application/vnd.intu.qbo":["qbo"],"application/vnd.intu.qfx":["qfx"],"application/vnd.ipunplugged.rcprofile":["rcprofile"],"application/vnd.irepository.package+xml":["irp"],"application/vnd.is-xpr":["xpr"],"application/vnd.isac.fcs":["fcs"],"application/vnd.jam":["jam"],"application/vnd.jcp.javame.midlet-rms":["rms"],"application/vnd.jisp":["jisp"],"application/vnd.joost.joda-archive":["joda"],"application/vnd.kahootz":["ktz","ktr"],"application/vnd.kde.karbon":["karbon"],"application/vnd.kde.kchart":["chrt"],"application/vnd.kde.kformula":["kfo"],"application/vnd.kde.kivio":["flw"],"application/vnd.kde.kontour":["kon"],"application/vnd.kde.kpresenter":["kpr","kpt"],"application/vnd.kde.kspread":["ksp"],"application/vnd.kde.kword":["kwd","kwt"],"application/vnd.kenameaapp":["htke"],"application/vnd.kidspiration":["kia"],"application/vnd.kinar":["kne","knp"],"application/vnd.koan":["skp","skd","skt","skm"],"application/vnd.kodak-descriptor":["sse"],"application/vnd.las.las+xml":["lasxml"],"application/vnd.llamagraphics.life-balance.desktop":["lbd"],"application/vnd.llamagraphics.life-balance.exchange+xml":["lbe"],"application/vnd.lotus-1-2-3":["123"],"application/vnd.lotus-approach":["apr"],"application/vnd.lotus-freelance":["pre"],"application/vnd.lotus-notes":["nsf"],"application/vnd.lotus-organizer":["org"],"application/vnd.lotus-screencam":["scm"],"application/vnd.lotus-wordpro":["lwp"],"application/vnd.macports.portpkg":["portpkg"],"application/vnd.mcd":["mcd"],"application/vnd.medcalcdata":["mc1"],"application/vnd.mediastation.cdkey":["cdkey"],"application/vnd.mfer":["mwf"],"application/vnd.mfmp":["mfm"],"application/vnd.micrografx.flo":["flo"],"application/vnd.micrografx.igx":["igx"],"application/vnd.mif":["mif"],"application/vnd.mobius.daf":["daf"],"application/vnd.mobius.dis":["dis"],"application/vnd.mobius.mbk":["mbk"],"application/vnd.mobius.mqy":["mqy"],"application/vnd.mobius.msl":["msl"],"application/vnd.mobius.plc":["plc"],"application/vnd.mobius.txf":["txf"],"application/vnd.mophun.application":["mpn"],"application/vnd.mophun.certificate":["mpc"],"application/vnd.mozilla.xul+xml":["xul"],"application/vnd.ms-artgalry":["cil"],"application/vnd.ms-cab-compressed":["cab"],"application/vnd.ms-excel":["xls","xlm","xla","xlc","xlt","xlw"],"application/vnd.ms-excel.addin.macroenabled.12":["xlam"],"application/vnd.ms-excel.sheet.binary.macroenabled.12":["xlsb"],"application/vnd.ms-excel.sheet.macroenabled.12":["xlsm"],"application/vnd.ms-excel.template.macroenabled.12":["xltm"],"application/vnd.ms-fontobject":["eot"],"application/vnd.ms-htmlhelp":["chm"],"application/vnd.ms-ims":["ims"],"application/vnd.ms-lrm":["lrm"],"application/vnd.ms-officetheme":["thmx"],"application/vnd.ms-outlook":["msg"],"application/vnd.ms-pki.seccat":["cat"],"application/vnd.ms-pki.stl":["*stl"],"application/vnd.ms-powerpoint":["ppt","pps","pot"],"application/vnd.ms-powerpoint.addin.macroenabled.12":["ppam"],"application/vnd.ms-powerpoint.presentation.macroenabled.12":["pptm"],"application/vnd.ms-powerpoint.slide.macroenabled.12":["sldm"],"application/vnd.ms-powerpoint.slideshow.macroenabled.12":["ppsm"],"application/vnd.ms-powerpoint.template.macroenabled.12":["potm"],"application/vnd.ms-project":["mpp","mpt"],"application/vnd.ms-word.document.macroenabled.12":["docm"],"application/vnd.ms-word.template.macroenabled.12":["dotm"],"application/vnd.ms-works":["wps","wks","wcm","wdb"],"application/vnd.ms-wpl":["wpl"],"application/vnd.ms-xpsdocument":["xps"],"application/vnd.mseq":["mseq"],"application/vnd.musician":["mus"],"application/vnd.muvee.style":["msty"],"application/vnd.mynfc":["taglet"],"application/vnd.neurolanguage.nlu":["nlu"],"application/vnd.nitf":["ntf","nitf"],"application/vnd.noblenet-directory":["nnd"],"application/vnd.noblenet-sealer":["nns"],"application/vnd.noblenet-web":["nnw"],"application/vnd.nokia.n-gage.ac+xml":["*ac"],"application/vnd.nokia.n-gage.data":["ngdat"],"application/vnd.nokia.n-gage.symbian.install":["n-gage"],"application/vnd.nokia.radio-preset":["rpst"],"application/vnd.nokia.radio-presets":["rpss"],"application/vnd.novadigm.edm":["edm"],"application/vnd.novadigm.edx":["edx"],"application/vnd.novadigm.ext":["ext"],"application/vnd.oasis.opendocument.chart":["odc"],"application/vnd.oasis.opendocument.chart-template":["otc"],"application/vnd.oasis.opendocument.database":["odb"],"application/vnd.oasis.opendocument.formula":["odf"],"application/vnd.oasis.opendocument.formula-template":["odft"],"application/vnd.oasis.opendocument.graphics":["odg"],"application/vnd.oasis.opendocument.graphics-template":["otg"],"application/vnd.oasis.opendocument.image":["odi"],"application/vnd.oasis.opendocument.image-template":["oti"],"application/vnd.oasis.opendocument.presentation":["odp"],"application/vnd.oasis.opendocument.presentation-template":["otp"],"application/vnd.oasis.opendocument.spreadsheet":["ods"],"application/vnd.oasis.opendocument.spreadsheet-template":["ots"],"application/vnd.oasis.opendocument.text":["odt"],"application/vnd.oasis.opendocument.text-master":["odm"],"application/vnd.oasis.opendocument.text-template":["ott"],"application/vnd.oasis.opendocument.text-web":["oth"],"application/vnd.olpc-sugar":["xo"],"application/vnd.oma.dd2+xml":["dd2"],"application/vnd.openblox.game+xml":["obgx"],"application/vnd.openofficeorg.extension":["oxt"],"application/vnd.openstreetmap.data+xml":["osm"],"application/vnd.openxmlformats-officedocument.presentationml.presentation":["pptx"],"application/vnd.openxmlformats-officedocument.presentationml.slide":["sldx"],"application/vnd.openxmlformats-officedocument.presentationml.slideshow":["ppsx"],"application/vnd.openxmlformats-officedocument.presentationml.template":["potx"],"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":["xlsx"],"application/vnd.openxmlformats-officedocument.spreadsheetml.template":["xltx"],"application/vnd.openxmlformats-officedocument.wordprocessingml.document":["docx"],"application/vnd.openxmlformats-officedocument.wordprocessingml.template":["dotx"],"application/vnd.osgeo.mapguide.package":["mgp"],"application/vnd.osgi.dp":["dp"],"application/vnd.osgi.subsystem":["esa"],"application/vnd.palm":["pdb","pqa","oprc"],"application/vnd.pawaafile":["paw"],"application/vnd.pg.format":["str"],"application/vnd.pg.osasli":["ei6"],"application/vnd.picsel":["efif"],"application/vnd.pmi.widget":["wg"],"application/vnd.pocketlearn":["plf"],"application/vnd.powerbuilder6":["pbd"],"application/vnd.previewsystems.box":["box"],"application/vnd.proteus.magazine":["mgz"],"application/vnd.publishare-delta-tree":["qps"],"application/vnd.pvi.ptid1":["ptid"],"application/vnd.quark.quarkxpress":["qxd","qxt","qwd","qwt","qxl","qxb"],"application/vnd.realvnc.bed":["bed"],"application/vnd.recordare.musicxml":["mxl"],"application/vnd.recordare.musicxml+xml":["musicxml"],"application/vnd.rig.cryptonote":["cryptonote"],"application/vnd.rim.cod":["cod"],"application/vnd.rn-realmedia":["rm"],"application/vnd.rn-realmedia-vbr":["rmvb"],"application/vnd.route66.link66+xml":["link66"],"application/vnd.sailingtracker.track":["st"],"application/vnd.seemail":["see"],"application/vnd.sema":["sema"],"application/vnd.semd":["semd"],"application/vnd.semf":["semf"],"application/vnd.shana.informed.formdata":["ifm"],"application/vnd.shana.informed.formtemplate":["itp"],"application/vnd.shana.informed.interchange":["iif"],"application/vnd.shana.informed.package":["ipk"],"application/vnd.simtech-mindmapper":["twd","twds"],"application/vnd.smaf":["mmf"],"application/vnd.smart.teacher":["teacher"],"application/vnd.software602.filler.form+xml":["fo"],"application/vnd.solent.sdkm+xml":["sdkm","sdkd"],"application/vnd.spotfire.dxp":["dxp"],"application/vnd.spotfire.sfs":["sfs"],"application/vnd.stardivision.calc":["sdc"],"application/vnd.stardivision.draw":["sda"],"application/vnd.stardivision.impress":["sdd"],"application/vnd.stardivision.math":["smf"],"application/vnd.stardivision.writer":["sdw","vor"],"application/vnd.stardivision.writer-global":["sgl"],"application/vnd.stepmania.package":["smzip"],"application/vnd.stepmania.stepchart":["sm"],"application/vnd.sun.wadl+xml":["wadl"],"application/vnd.sun.xml.calc":["sxc"],"application/vnd.sun.xml.calc.template":["stc"],"application/vnd.sun.xml.draw":["sxd"],"application/vnd.sun.xml.draw.template":["std"],"application/vnd.sun.xml.impress":["sxi"],"application/vnd.sun.xml.impress.template":["sti"],"application/vnd.sun.xml.math":["sxm"],"application/vnd.sun.xml.writer":["sxw"],"application/vnd.sun.xml.writer.global":["sxg"],"application/vnd.sun.xml.writer.template":["stw"],"application/vnd.sus-calendar":["sus","susp"],"application/vnd.svd":["svd"],"application/vnd.symbian.install":["sis","sisx"],"application/vnd.syncml+xml":["xsm"],"application/vnd.syncml.dm+wbxml":["bdm"],"application/vnd.syncml.dm+xml":["xdm"],"application/vnd.syncml.dmddf+xml":["ddf"],"application/vnd.tao.intent-module-archive":["tao"],"application/vnd.tcpdump.pcap":["pcap","cap","dmp"],"application/vnd.tmobile-livetv":["tmo"],"application/vnd.trid.tpt":["tpt"],"application/vnd.triscape.mxs":["mxs"],"application/vnd.trueapp":["tra"],"application/vnd.ufdl":["ufd","ufdl"],"application/vnd.uiq.theme":["utz"],"application/vnd.umajin":["umj"],"application/vnd.unity":["unityweb"],"application/vnd.uoml+xml":["uoml"],"application/vnd.vcx":["vcx"],"application/vnd.visio":["vsd","vst","vss","vsw"],"application/vnd.visionary":["vis"],"application/vnd.vsf":["vsf"],"application/vnd.wap.wbxml":["wbxml"],"application/vnd.wap.wmlc":["wmlc"],"application/vnd.wap.wmlscriptc":["wmlsc"],"application/vnd.webturbo":["wtb"],"application/vnd.wolfram.player":["nbp"],"application/vnd.wordperfect":["wpd"],"application/vnd.wqd":["wqd"],"application/vnd.wt.stf":["stf"],"application/vnd.xara":["xar"],"application/vnd.xfdl":["xfdl"],"application/vnd.yamaha.hv-dic":["hvd"],"application/vnd.yamaha.hv-script":["hvs"],"application/vnd.yamaha.hv-voice":["hvp"],"application/vnd.yamaha.openscoreformat":["osf"],"application/vnd.yamaha.openscoreformat.osfpvg+xml":["osfpvg"],"application/vnd.yamaha.smaf-audio":["saf"],"application/vnd.yamaha.smaf-phrase":["spf"],"application/vnd.yellowriver-custom-menu":["cmp"],"application/vnd.zul":["zir","zirz"],"application/vnd.zzazz.deck+xml":["zaz"],"application/x-7z-compressed":["7z"],"application/x-abiword":["abw"],"application/x-ace-compressed":["ace"],"application/x-apple-diskimage":["*dmg"],"application/x-arj":["arj"],"application/x-authorware-bin":["aab","x32","u32","vox"],"application/x-authorware-map":["aam"],"application/x-authorware-seg":["aas"],"application/x-bcpio":["bcpio"],"application/x-bdoc":["*bdoc"],"application/x-bittorrent":["torrent"],"application/x-blorb":["blb","blorb"],"application/x-bzip":["bz"],"application/x-bzip2":["bz2","boz"],"application/x-cbr":["cbr","cba","cbt","cbz","cb7"],"application/x-cdlink":["vcd"],"application/x-cfs-compressed":["cfs"],"application/x-chat":["chat"],"application/x-chess-pgn":["pgn"],"application/x-chrome-extension":["crx"],"application/x-cocoa":["cco"],"application/x-conference":["nsc"],"application/x-cpio":["cpio"],"application/x-csh":["csh"],"application/x-debian-package":["*deb","udeb"],"application/x-dgc-compressed":["dgc"],"application/x-director":["dir","dcr","dxr","cst","cct","cxt","w3d","fgd","swa"],"application/x-doom":["wad"],"application/x-dtbncx+xml":["ncx"],"application/x-dtbook+xml":["dtb"],"application/x-dtbresource+xml":["res"],"application/x-dvi":["dvi"],"application/x-envoy":["evy"],"application/x-eva":["eva"],"application/x-font-bdf":["bdf"],"application/x-font-ghostscript":["gsf"],"application/x-font-linux-psf":["psf"],"application/x-font-pcf":["pcf"],"application/x-font-snf":["snf"],"application/x-font-type1":["pfa","pfb","pfm","afm"],"application/x-freearc":["arc"],"application/x-futuresplash":["spl"],"application/x-gca-compressed":["gca"],"application/x-glulx":["ulx"],"application/x-gnumeric":["gnumeric"],"application/x-gramps-xml":["gramps"],"application/x-gtar":["gtar"],"application/x-hdf":["hdf"],"application/x-httpd-php":["php"],"application/x-install-instructions":["install"],"application/x-iso9660-image":["*iso"],"application/x-java-archive-diff":["jardiff"],"application/x-java-jnlp-file":["jnlp"],"application/x-keepass2":["kdbx"],"application/x-latex":["latex"],"application/x-lua-bytecode":["luac"],"application/x-lzh-compressed":["lzh","lha"],"application/x-makeself":["run"],"application/x-mie":["mie"],"application/x-mobipocket-ebook":["prc","mobi"],"application/x-ms-application":["application"],"application/x-ms-shortcut":["lnk"],"application/x-ms-wmd":["wmd"],"application/x-ms-wmz":["wmz"],"application/x-ms-xbap":["xbap"],"application/x-msaccess":["mdb"],"application/x-msbinder":["obd"],"application/x-mscardfile":["crd"],"application/x-msclip":["clp"],"application/x-msdos-program":["*exe"],"application/x-msdownload":["*exe","*dll","com","bat","*msi"],"application/x-msmediaview":["mvb","m13","m14"],"application/x-msmetafile":["*wmf","*wmz","*emf","emz"],"application/x-msmoney":["mny"],"application/x-mspublisher":["pub"],"application/x-msschedule":["scd"],"application/x-msterminal":["trm"],"application/x-mswrite":["wri"],"application/x-netcdf":["nc","cdf"],"application/x-ns-proxy-autoconfig":["pac"],"application/x-nzb":["nzb"],"application/x-perl":["pl","pm"],"application/x-pilot":["*prc","*pdb"],"application/x-pkcs12":["p12","pfx"],"application/x-pkcs7-certificates":["p7b","spc"],"application/x-pkcs7-certreqresp":["p7r"],"application/x-rar-compressed":["rar"],"application/x-redhat-package-manager":["rpm"],"application/x-research-info-systems":["ris"],"application/x-sea":["sea"],"application/x-sh":["sh"],"application/x-shar":["shar"],"application/x-shockwave-flash":["swf"],"application/x-silverlight-app":["xap"],"application/x-sql":["sql"],"application/x-stuffit":["sit"],"application/x-stuffitx":["sitx"],"application/x-subrip":["srt"],"application/x-sv4cpio":["sv4cpio"],"application/x-sv4crc":["sv4crc"],"application/x-t3vm-image":["t3"],"application/x-tads":["gam"],"application/x-tar":["tar"],"application/x-tcl":["tcl","tk"],"application/x-tex":["tex"],"application/x-tex-tfm":["tfm"],"application/x-texinfo":["texinfo","texi"],"application/x-tgif":["*obj"],"application/x-ustar":["ustar"],"application/x-virtualbox-hdd":["hdd"],"application/x-virtualbox-ova":["ova"],"application/x-virtualbox-ovf":["ovf"],"application/x-virtualbox-vbox":["vbox"],"application/x-virtualbox-vbox-extpack":["vbox-extpack"],"application/x-virtualbox-vdi":["vdi"],"application/x-virtualbox-vhd":["vhd"],"application/x-virtualbox-vmdk":["vmdk"],"application/x-wais-source":["src"],"application/x-web-app-manifest+json":["webapp"],"application/x-x509-ca-cert":["der","crt","pem"],"application/x-xfig":["fig"],"application/x-xliff+xml":["*xlf"],"application/x-xpinstall":["xpi"],"application/x-xz":["xz"],"application/x-zmachine":["z1","z2","z3","z4","z5","z6","z7","z8"],"audio/vnd.dece.audio":["uva","uvva"],"audio/vnd.digital-winds":["eol"],"audio/vnd.dra":["dra"],"audio/vnd.dts":["dts"],"audio/vnd.dts.hd":["dtshd"],"audio/vnd.lucent.voice":["lvp"],"audio/vnd.ms-playready.media.pya":["pya"],"audio/vnd.nuera.ecelp4800":["ecelp4800"],"audio/vnd.nuera.ecelp7470":["ecelp7470"],"audio/vnd.nuera.ecelp9600":["ecelp9600"],"audio/vnd.rip":["rip"],"audio/x-aac":["aac"],"audio/x-aiff":["aif","aiff","aifc"],"audio/x-caf":["caf"],"audio/x-flac":["flac"],"audio/x-m4a":["*m4a"],"audio/x-matroska":["mka"],"audio/x-mpegurl":["m3u"],"audio/x-ms-wax":["wax"],"audio/x-ms-wma":["wma"],"audio/x-pn-realaudio":["ram","ra"],"audio/x-pn-realaudio-plugin":["rmp"],"audio/x-realaudio":["*ra"],"audio/x-wav":["*wav"],"chemical/x-cdx":["cdx"],"chemical/x-cif":["cif"],"chemical/x-cmdf":["cmdf"],"chemical/x-cml":["cml"],"chemical/x-csml":["csml"],"chemical/x-xyz":["xyz"],"image/prs.btif":["btif"],"image/prs.pti":["pti"],"image/vnd.adobe.photoshop":["psd"],"image/vnd.airzip.accelerator.azv":["azv"],"image/vnd.dece.graphic":["uvi","uvvi","uvg","uvvg"],"image/vnd.djvu":["djvu","djv"],"image/vnd.dvb.subtitle":["*sub"],"image/vnd.dwg":["dwg"],"image/vnd.dxf":["dxf"],"image/vnd.fastbidsheet":["fbs"],"image/vnd.fpx":["fpx"],"image/vnd.fst":["fst"],"image/vnd.fujixerox.edmics-mmr":["mmr"],"image/vnd.fujixerox.edmics-rlc":["rlc"],"image/vnd.microsoft.icon":["ico"],"image/vnd.ms-dds":["dds"],"image/vnd.ms-modi":["mdi"],"image/vnd.ms-photo":["wdp"],"image/vnd.net-fpx":["npx"],"image/vnd.tencent.tap":["tap"],"image/vnd.valve.source.texture":["vtf"],"image/vnd.wap.wbmp":["wbmp"],"image/vnd.xiff":["xif"],"image/vnd.zbrush.pcx":["pcx"],"image/x-3ds":["3ds"],"image/x-cmu-raster":["ras"],"image/x-cmx":["cmx"],"image/x-freehand":["fh","fhc","fh4","fh5","fh7"],"image/x-icon":["*ico"],"image/x-jng":["jng"],"image/x-mrsid-image":["sid"],"image/x-ms-bmp":["*bmp"],"image/x-pcx":["*pcx"],"image/x-pict":["pic","pct"],"image/x-portable-anymap":["pnm"],"image/x-portable-bitmap":["pbm"],"image/x-portable-graymap":["pgm"],"image/x-portable-pixmap":["ppm"],"image/x-rgb":["rgb"],"image/x-tga":["tga"],"image/x-xbitmap":["xbm"],"image/x-xpixmap":["xpm"],"image/x-xwindowdump":["xwd"],"message/vnd.wfa.wsc":["wsc"],"model/vnd.collada+xml":["dae"],"model/vnd.dwf":["dwf"],"model/vnd.gdl":["gdl"],"model/vnd.gtw":["gtw"],"model/vnd.mts":["mts"],"model/vnd.opengex":["ogex"],"model/vnd.parasolid.transmit.binary":["x_b"],"model/vnd.parasolid.transmit.text":["x_t"],"model/vnd.usdz+zip":["usdz"],"model/vnd.valve.source.compiled-map":["bsp"],"model/vnd.vtu":["vtu"],"text/prs.lines.tag":["dsc"],"text/vnd.curl":["curl"],"text/vnd.curl.dcurl":["dcurl"],"text/vnd.curl.mcurl":["mcurl"],"text/vnd.curl.scurl":["scurl"],"text/vnd.dvb.subtitle":["sub"],"text/vnd.fly":["fly"],"text/vnd.fmi.flexstor":["flx"],"text/vnd.graphviz":["gv"],"text/vnd.in3d.3dml":["3dml"],"text/vnd.in3d.spot":["spot"],"text/vnd.sun.j2me.app-descriptor":["jad"],"text/vnd.wap.wml":["wml"],"text/vnd.wap.wmlscript":["wmls"],"text/x-asm":["s","asm"],"text/x-c":["c","cc","cxx","cpp","h","hh","dic"],"text/x-component":["htc"],"text/x-fortran":["f","for","f77","f90"],"text/x-handlebars-template":["hbs"],"text/x-java-source":["java"],"text/x-lua":["lua"],"text/x-markdown":["mkd"],"text/x-nfo":["nfo"],"text/x-opml":["opml"],"text/x-org":["*org"],"text/x-pascal":["p","pas"],"text/x-processing":["pde"],"text/x-sass":["sass"],"text/x-scss":["scss"],"text/x-setext":["etx"],"text/x-sfv":["sfv"],"text/x-suse-ymp":["ymp"],"text/x-uuencode":["uu"],"text/x-vcalendar":["vcs"],"text/x-vcard":["vcf"],"video/vnd.dece.hd":["uvh","uvvh"],"video/vnd.dece.mobile":["uvm","uvvm"],"video/vnd.dece.pd":["uvp","uvvp"],"video/vnd.dece.sd":["uvs","uvvs"],"video/vnd.dece.video":["uvv","uvvv"],"video/vnd.dvb.file":["dvb"],"video/vnd.fvt":["fvt"],"video/vnd.mpegurl":["mxu","m4u"],"video/vnd.ms-playready.media.pyv":["pyv"],"video/vnd.uvvu.mp4":["uvu","uvvu"],"video/vnd.vivo":["viv"],"video/x-f4v":["f4v"],"video/x-fli":["fli"],"video/x-flv":["flv"],"video/x-m4v":["m4v"],"video/x-matroska":["mkv","mk3d","mks"],"video/x-mng":["mng"],"video/x-ms-asf":["asf","asx"],"video/x-ms-vob":["vob"],"video/x-ms-wm":["wm"],"video/x-ms-wmv":["wmv"],"video/x-ms-wmx":["wmx"],"video/x-ms-wvx":["wvx"],"video/x-msvideo":["avi"],"video/x-sgi-movie":["movie"],"video/x-smv":["smv"],"x-conference/x-cooltalk":["ice"]};
+
+/***/ }),
+
+/***/ 984:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const core = __importStar(__webpack_require__(470));
+const github_1 = __webpack_require__(430);
+class Git {
+    constructor(octokit) {
+        this.octokit = octokit;
+    }
+    getFiles(context) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const filePromises = [];
+            switch (context.eventName) {
+                case github_1.ContextEventName.Push:
+                    for (const commit of context.payload.commits) {
+                        const ref = commit.id;
+                        core.debug(`[${context.eventName}] Fetching files for commit ${ref}`);
+                        filePromises.push(this.octokit.repos
+                            .getCommit(Object.assign(Object.assign({}, context.repo), { ref }))
+                            .then(response => response.data.files));
+                    }
+                    break;
+                case github_1.ContextEventName.PullRequest:
+                    core.debug(`[${context.eventName}] Fetching files for pull request ${context.payload.number}`);
+                    filePromises.push(this.octokit.paginate('GET /repos/:owner/:repo/pulls/:pull_number/files', Object.assign(Object.assign({}, context.repo), { pull_number: context.payload.number // eslint-disable-line @typescript-eslint/camelcase
+                     })));
+                    break;
+                default:
+                    assertUnsupportedEvent(context);
+            }
+            return Promise.all(filePromises).then(files => {
+                return files.reduce((result, value) => {
+                    result.push(...value);
+                    return result;
+                }, []);
+            });
+        });
+    }
+}
+exports.default = Git;
+function assertUnsupportedEvent(context) {
+    throw new Error(`Unsupported event ${context.eventName} (currently supported events include ${Object.values(github_1.ContextEventName).join(', ')})`);
+}
+
+
+/***/ }),
+
+/***/ 985:
+/***/ (function(module, exports, __webpack_require__) {
+
+/**
+ * This is the web browser implementation of `debug()`.
+ *
+ * Expose `debug()` as the module.
+ */
+
+exports = module.exports = __webpack_require__(852);
+exports.log = log;
+exports.formatArgs = formatArgs;
+exports.save = save;
+exports.load = load;
+exports.useColors = useColors;
+exports.storage = 'undefined' != typeof chrome
+               && 'undefined' != typeof chrome.storage
+                  ? chrome.storage.local
+                  : localstorage();
+
+/**
+ * Colors.
+ */
+
+exports.colors = [
+  'lightseagreen',
+  'forestgreen',
+  'goldenrod',
+  'dodgerblue',
+  'darkorchid',
+  'crimson'
+];
+
+/**
+ * Currently only WebKit-based Web Inspectors, Firefox >= v31,
+ * and the Firebug extension (any Firefox version) are known
+ * to support "%c" CSS customizations.
+ *
+ * TODO: add a `localStorage` variable to explicitly enable/disable colors
+ */
+
+function useColors() {
+  // NB: In an Electron preload script, document will be defined but not fully
+  // initialized. Since we know we're in Chrome, we'll just detect this case
+  // explicitly
+  if (typeof window !== 'undefined' && window.process && window.process.type === 'renderer') {
+    return true;
+  }
+
+  // is webkit? http://stackoverflow.com/a/16459606/376773
+  // document is undefined in react-native: https://github.com/facebook/react-native/pull/1632
+  return (typeof document !== 'undefined' && document.documentElement && document.documentElement.style && document.documentElement.style.WebkitAppearance) ||
+    // is firebug? http://stackoverflow.com/a/398120/376773
+    (typeof window !== 'undefined' && window.console && (window.console.firebug || (window.console.exception && window.console.table))) ||
+    // is firefox >= v31?
+    // https://developer.mozilla.org/en-US/docs/Tools/Web_Console#Styling_messages
+    (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/) && parseInt(RegExp.$1, 10) >= 31) ||
+    // double check webkit in userAgent just in case we are in a worker
+    (typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/));
+}
+
+/**
+ * Map %j to `JSON.stringify()`, since no Web Inspectors do that by default.
+ */
+
+exports.formatters.j = function(v) {
+  try {
+    return JSON.stringify(v);
+  } catch (err) {
+    return '[UnexpectedJSONParseError]: ' + err.message;
+  }
+};
+
+
+/**
+ * Colorize log arguments if enabled.
+ *
+ * @api public
+ */
+
+function formatArgs(args) {
+  var useColors = this.useColors;
+
+  args[0] = (useColors ? '%c' : '')
+    + this.namespace
+    + (useColors ? ' %c' : ' ')
+    + args[0]
+    + (useColors ? '%c ' : ' ')
+    + '+' + exports.humanize(this.diff);
+
+  if (!useColors) return;
+
+  var c = 'color: ' + this.color;
+  args.splice(1, 0, c, 'color: inherit')
+
+  // the final "%c" is somewhat tricky, because there could be other
+  // arguments passed either before or after the %c, so we need to
+  // figure out the correct index to insert the CSS into
+  var index = 0;
+  var lastC = 0;
+  args[0].replace(/%[a-zA-Z%]/g, function(match) {
+    if ('%%' === match) return;
+    index++;
+    if ('%c' === match) {
+      // we only are interested in the *last* %c
+      // (the user may have provided their own)
+      lastC = index;
+    }
+  });
+
+  args.splice(lastC, 0, c);
+}
+
+/**
+ * Invokes `console.log()` when available.
+ * No-op when `console.log` is not a "function".
+ *
+ * @api public
+ */
+
+function log() {
+  // this hackery is required for IE8/9, where
+  // the `console.log` function doesn't have 'apply'
+  return 'object' === typeof console
+    && console.log
+    && Function.prototype.apply.call(console.log, console, arguments);
+}
+
+/**
+ * Save `namespaces`.
+ *
+ * @param {String} namespaces
+ * @api private
+ */
+
+function save(namespaces) {
+  try {
+    if (null == namespaces) {
+      exports.storage.removeItem('debug');
+    } else {
+      exports.storage.debug = namespaces;
+    }
+  } catch(e) {}
+}
+
+/**
+ * Load `namespaces`.
+ *
+ * @return {String} returns the previously persisted debug modes
+ * @api private
+ */
+
+function load() {
+  var r;
+  try {
+    r = exports.storage.debug;
+  } catch(e) {}
+
+  // If debug isn't set in LS, and we're in Electron, try to load $DEBUG
+  if (!r && typeof process !== 'undefined' && 'env' in process) {
+    r = process.env.DEBUG;
+  }
+
+  return r;
+}
+
+/**
+ * Enable namespaces listed in `localStorage.debug` initially.
+ */
+
+exports.enable(load());
+
+/**
+ * Localstorage attempts to return the localstorage.
+ *
+ * This is necessary because safari throws
+ * when a user disables cookies/localstorage
+ * and you attempt to access it.
+ *
+ * @return {LocalStorage}
+ * @api private
+ */
+
+function localstorage() {
+  try {
+    return window.localStorage;
+  } catch (e) {}
+}
+
 
 /***/ }),
 
