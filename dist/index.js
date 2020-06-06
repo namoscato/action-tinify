@@ -2314,7 +2314,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 var ContextEventName;
 (function (ContextEventName) {
     ContextEventName["Push"] = "push";
-    ContextEventName["PullRequest"] = "pull-request";
+    ContextEventName["PullRequest"] = "pull_request";
 })(ContextEventName = exports.ContextEventName || (exports.ContextEventName = {}));
 
 
@@ -2447,23 +2447,34 @@ function run() {
         try {
             // const apiKey = core.getInput('api_key', {required: true})
             const githubToken = core.getInput('github_token', { required: true });
+            const octokit = github.getOctokit(githubToken);
             const context = github.context;
-            let commits;
+            const filePromises = [];
             switch (context.eventName) {
                 case github_1.ContextEventName.Push:
-                    commits = context.payload.commits.map(commit => commit.id);
+                    for (const commit of context.payload.commits) {
+                        const ref = commit.id;
+                        core.debug(`Fetching files for commit ${ref}`);
+                        filePromises.push(octokit.repos
+                            .getCommit(Object.assign(Object.assign({}, github.context.repo), { ref }))
+                            .then(response => response.data.files));
+                    }
                     break;
                 case github_1.ContextEventName.PullRequest:
-                    commits = yield github
-                        .getOctokit(githubToken)
-                        .paginate('GET /repos/:owner/:repo/pulls/:pull_number/commits', Object.assign(Object.assign({}, github.context.repo), { pull_number: context.payload.number // eslint-disable-line @typescript-eslint/camelcase
-                     }))
-                        .then(response => response.map(commit => commit.sha));
+                    core.debug(`Fetching files for pull request ${context.payload.number}`);
+                    filePromises.push(octokit.paginate('GET /repos/:owner/:repo/pulls/:pull_number/files', Object.assign(Object.assign({}, github.context.repo), { pull_number: context.payload.number // eslint-disable-line @typescript-eslint/camelcase
+                     })));
                     break;
                 default:
                     assertUnsupportedEvent(context);
             }
-            core.debug(`commits: ${JSON.stringify(commits, null, 4)}`);
+            const filenames = new Set();
+            for (const files of yield Promise.all(filePromises)) {
+                for (const file of files) {
+                    filenames.add(file.filename);
+                }
+            }
+            core.debug(`filenames: \n${Array.from(filenames.values()).join('\n')}`);
         }
         catch (error) {
             core.debug(error);
@@ -2472,7 +2483,7 @@ function run() {
     });
 }
 function assertUnsupportedEvent(context) {
-    throw new Error(`Unsupported event ${context.eventName}`);
+    throw new Error(`Unsupported event ${context.eventName} (currently supported events include ${Object.values(github_1.ContextEventName).join(', ')})`);
 }
 run();
 

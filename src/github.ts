@@ -3,6 +3,10 @@ import Webhooks from '@octokit/webhooks'
 import WebhookPayloadPush = Webhooks.WebhookPayloadPush
 import WebhookPayloadPullRequest = Webhooks.WebhookPayloadPullRequest
 
+export interface File {
+  filename: string
+}
+
 export enum ContextEventName {
   Push = 'push',
   PullRequest = 'pull_request'
