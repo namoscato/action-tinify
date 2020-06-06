@@ -1,10 +1,13 @@
-name: 'Your name here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
-inputs:
-  myInput:              # change this
-    description: 'input description here'
-    default: 'default value if applicable'
+name: 'Tinify Action'
+description: 'Compress and resize images with the Tinify API'
+author: 'namoscato'
 runs:
   using: 'node12'
   main: 'dist/index.js'
+inputs:
+  api_key:
+    description: 'Tinify API key'
+    required: true
+  github_token:
+    description: 'GITHUB_TOKEN secret'
+    required: true

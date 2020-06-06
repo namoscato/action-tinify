@@ -1,16 +1,32 @@
 import * as core from '@actions/core'
-import {wait} from './wait'
+import github from '@actions/github'
 
 async function run(): Promise<void> {
   try {
-    const ms: string = core.getInput('milliseconds')
-    core.debug(`Waiting ${ms} milliseconds ...`)
+    // const apiKey = core.getInput('api_key', {required: true})
+    const githubToken = core.getInput('github_token', {required: true})
 
-    core.debug(new Date().toTimeString())
-    await wait(parseInt(ms, 10))
-    core.debug(new Date().toTimeString())
+    const context = github.context
+    const payload = github.context.payload
 
-    core.setOutput('time', new Date().toTimeString())
+    let commits: any[]
+
+    const octokit = github.getOctokit(githubToken)
+
+    switch (context.eventName) {
+      case 'push':
+        commits = payload.commits
+        break
+      case 'pull_request':
+        commits = await octokit.paginate(
+          `GET ${payload.pull_request!.commits_url}`
+        )
+        break
+      default:
+        throw new Error(`Unsupported event '${context.eventName}'`)
+    }
+
+    core.debug(`commits: ${JSON.stringify(commits, null, 4)}`)
   } catch (error) {
     core.setFailed(error.message)
   }
