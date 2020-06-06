@@ -1,17 +1,16 @@
 import * as core from '@actions/core'
-import * as github from '@actions/github'
+import {context, getOctokit} from '@actions/github'
 
 async function run(): Promise<void> {
   try {
     // const apiKey = core.getInput('api_key', {required: true})
     const githubToken = core.getInput('github_token', {required: true})
 
-    const context = github.context
     const payload = context.payload
 
     let commits: any[]
 
-    const octokit = github.getOctokit(githubToken)
+    const octokit = getOctokit(githubToken)
 
     switch (context.eventName) {
       case 'push':
