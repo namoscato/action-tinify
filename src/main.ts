@@ -2,13 +2,10 @@ import * as core from '@actions/core'
 import * as github from '@actions/github'
 import {Context, ContextEventName, File} from 'github'
 import Images from 'images'
-import mmm from 'mmmagic'
-
-const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png']
 
 async function run(): Promise<void> {
   try {
-    const apiKey = core.getInput('api_key', {required: true})
+    // const apiKey = core.getInput('api_key', {required: true})
     const githubToken = core.getInput('github_token', {required: true})
 
     const octokit = github.getOctokit(githubToken)
@@ -49,11 +46,11 @@ async function run(): Promise<void> {
         assertUnsupportedEvent(context)
     }
 
-    const images = new Images(new mmm.Magic(mmm.MAGIC_MIME_TYPE))
+    const images = new Images()
 
     for (const files of await Promise.all(filePromises)) {
       for (const file of files) {
-        await images.addFile(file.filename)
+        images.addFile(file.filename)
       }
     }
 
