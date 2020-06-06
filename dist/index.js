@@ -2438,14 +2438,20 @@ var __importStar = (this && this.__importStar) || function (mod) {
     result["default"] = mod;
     return result;
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(__webpack_require__(470));
 const github = __importStar(__webpack_require__(469));
 const github_1 = __webpack_require__(146);
+const images_1 = __importDefault(__webpack_require__(666));
+const mmmagic_1 = __importDefault(__webpack_require__(592));
+const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png'];
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            // const apiKey = core.getInput('api_key', {required: true})
+            const apiKey = core.getInput('api_key', { required: true });
             const githubToken = core.getInput('github_token', { required: true });
             const octokit = github.getOctokit(githubToken);
             const context = github.context;
@@ -2454,30 +2460,30 @@ function run() {
                 case github_1.ContextEventName.Push:
                     for (const commit of context.payload.commits) {
                         const ref = commit.id;
-                        core.debug(`Fetching files for commit ${ref}`);
+                        core.debug(`[${context.eventName}] Fetching files for commit ${ref}`);
                         filePromises.push(octokit.repos
                             .getCommit(Object.assign(Object.assign({}, github.context.repo), { ref }))
                             .then(response => response.data.files));
                     }
                     break;
                 case github_1.ContextEventName.PullRequest:
-                    core.debug(`Fetching files for pull request ${context.payload.number}`);
+                    core.debug(`[${context.eventName}] Fetching files for pull request ${context.payload.number}`);
                     filePromises.push(octokit.paginate('GET /repos/:owner/:repo/pulls/:pull_number/files', Object.assign(Object.assign({}, github.context.repo), { pull_number: context.payload.number // eslint-disable-line @typescript-eslint/camelcase
                      })));
                     break;
                 default:
                     assertUnsupportedEvent(context);
             }
-            const filenames = new Set();
+            const images = new images_1.default(new mmmagic_1.default.Magic(mmmagic_1.default.MAGIC_MIME_TYPE));
             for (const files of yield Promise.all(filePromises)) {
                 for (const file of files) {
-                    filenames.add(file.filename);
+                    yield images.addFile(file.filename);
                 }
             }
-            core.debug(`filenames: \n${Array.from(filenames.values()).join('\n')}`);
+            core.debug(`filenames: \n${Array.from(images.all()).join('\n')}`);
         }
         catch (error) {
-            core.debug(error);
+            core.debug(error.stack);
             core.setFailed(error.message);
         }
     });
@@ -5318,6 +5324,13 @@ exports.Octokit = Octokit;
 
 /***/ }),
 
+/***/ 452:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+module.exports = require(__webpack_require__.ab + "build/Release/magic.node")
+
+/***/ }),
+
 /***/ 453:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -6729,6 +6742,41 @@ module.exports = parse;
 
 /***/ }),
 
+/***/ 592:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+var Magic = __webpack_require__(452);
+var fbpath = __webpack_require__(622).join(__dirname, '..', 'magic', 'magic');
+Magic.setFallback(fbpath);
+
+module.exports = {
+  Magic: Magic.Magic,
+  MAGIC_NONE: 0x000000, /* No flags (default for Windows) */
+  MAGIC_DEBUG: 0x000001, /* Turn on debugging */
+  MAGIC_SYMLINK: 0x000002, /* Follow symlinks (default for *nix) */
+  MAGIC_DEVICES: 0x000008, /* Look at the contents of devices */
+  MAGIC_MIME_TYPE: 0x000010, /* Return the MIME type */
+  MAGIC_CONTINUE: 0x000020, /* Return all matches */
+  MAGIC_CHECK: 0x000040, /* Print warnings to stderr */
+  MAGIC_PRESERVE_ATIME: 0x000080, /* Restore access time on exit */
+  MAGIC_RAW: 0x000100, /* Don't translate unprintable chars */
+  MAGIC_MIME_ENCODING: 0x000400, /* Return the MIME encoding */
+  MAGIC_MIME: (0x000010|0x000400), /*(MAGIC_MIME_TYPE|MAGIC_MIME_ENCODING)*/
+  MAGIC_APPLE: 0x000800, /* Return the Apple creator and type */
+
+  MAGIC_NO_CHECK_TAR: 0x002000, /* Don't check for tar files */
+  MAGIC_NO_CHECK_SOFT: 0x004000, /* Don't check magic entries */
+  MAGIC_NO_CHECK_APPTYPE: 0x008000, /* Don't check application type */
+  MAGIC_NO_CHECK_ELF: 0x010000, /* Don't check for elf details */
+  MAGIC_NO_CHECK_TEXT: 0x020000, /* Don't check for text files */
+  MAGIC_NO_CHECK_CDF: 0x040000, /* Don't check for cdf files */
+  MAGIC_NO_CHECK_TOKENS: 0x100000, /* Don't check tokens */
+  MAGIC_NO_CHECK_ENCODING: 0x200000 /* Don't check text encodings */
+};
+
+
+/***/ }),
+
 /***/ 605:
 /***/ (function(module) {
 
@@ -6916,6 +6964,74 @@ if (process.platform === 'linux') {
     'SIGUNUSED'
   )
 }
+
+
+/***/ }),
+
+/***/ 666:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const core = __importStar(__webpack_require__(470));
+const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png'];
+class Images {
+    constructor(magic) {
+        this.magic = magic;
+        this.images = new Set();
+    }
+    addFile(filename) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (this.images.has(filename)) {
+                core.debug(`[${filename}] Skipping duplicate file`);
+                return Promise.resolve();
+            }
+            const mimeType = yield this.getMimeType(filename);
+            if (-1 === SUPPORTED_MIME_TYPES.indexOf(mimeType)) {
+                core.debug(`[${filename}] Skipping file with unsupported mime type ${mimeType}`);
+                return Promise.resolve();
+            }
+            core.debug(`[${filename}] Adding ${mimeType} image`);
+            this.images.add(filename);
+            return Promise.resolve();
+        });
+    }
+    all() {
+        return this.images.values();
+    }
+    getMimeType(filename) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return new Promise((resolve, reject) => {
+                this.magic.detectFile(filename, function (error, result) {
+                    if (error) {
+                        reject(error);
+                    }
+                    else {
+                        resolve(result);
+                    }
+                });
+            });
+        });
+    }
+}
+exports.default = Images;
 
 
 /***/ }),

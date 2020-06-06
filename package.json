@@ -30,11 +30,13 @@
   "dependencies": {
     "@actions/core": "^1.2.0",
     "@actions/github": "^3.0.0",
+    "mmmagic": "^0.5.3",
     "tinify": "^1.6.0-beta.2"
   },
   "devDependencies": {
     "@octokit/webhooks": "^7.6.2",
     "@types/jest": "^24.0.23",
+    "@types/mmmagic": "^0.4.29",
     "@types/node": "^12.7.12",
     "@typescript-eslint/parser": "^2.8.0",
     "@zeit/ncc": "^0.20.5",

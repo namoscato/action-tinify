@@ -1,14 +1,19 @@
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 import {Context, ContextEventName, File} from 'github'
+import Images from 'images'
+import mmm from 'mmmagic'
+
+const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png']
 
 async function run(): Promise<void> {
   try {
-    // const apiKey = core.getInput('api_key', {required: true})
+    const apiKey = core.getInput('api_key', {required: true})
     const githubToken = core.getInput('github_token', {required: true})
-    const octokit = github.getOctokit(githubToken)
 
+    const octokit = github.getOctokit(githubToken)
     const context = github.context as Context
+
     const filePromises: Promise<File[]>[] = []
 
     switch (context.eventName) {
@@ -16,7 +21,7 @@ async function run(): Promise<void> {
         for (const commit of context.payload.commits) {
           const ref = commit.id
 
-          core.debug(`Fetching files for commit ${ref}`)
+          core.debug(`[${context.eventName}] Fetching files for commit ${ref}`)
 
           filePromises.push(
             octokit.repos
@@ -29,7 +34,9 @@ async function run(): Promise<void> {
         }
         break
       case ContextEventName.PullRequest:
-        core.debug(`Fetching files for pull request ${context.payload.number}`)
+        core.debug(
+          `[${context.eventName}] Fetching files for pull request ${context.payload.number}`
+        )
 
         filePromises.push(
           octokit.paginate('GET /repos/:owner/:repo/pulls/:pull_number/files', {
@@ -42,17 +49,17 @@ async function run(): Promise<void> {
         assertUnsupportedEvent(context)
     }
 
-    const filenames = new Set<string>()
+    const images = new Images(new mmm.Magic(mmm.MAGIC_MIME_TYPE))
 
     for (const files of await Promise.all(filePromises)) {
       for (const file of files) {
-        filenames.add(file.filename)
+        await images.addFile(file.filename)
       }
     }
 
-    core.debug(`filenames: \n${Array.from(filenames.values()).join('\n')}`)
+    core.debug(`filenames: \n${Array.from(images.all()).join('\n')}`)
   } catch (error) {
-    core.debug(error)
+    core.debug(error.stack)
     core.setFailed(error.message)
   }
 }
