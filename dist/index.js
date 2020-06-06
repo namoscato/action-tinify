@@ -2305,6 +2305,21 @@ module.exports.MaxBufferError = MaxBufferError;
 
 /***/ }),
 
+/***/ 146:
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var ContextEventName;
+(function (ContextEventName) {
+    ContextEventName["Push"] = "push";
+    ContextEventName["PullRequest"] = "pull-request";
+})(ContextEventName = exports.ContextEventName || (exports.ContextEventName = {}));
+
+
+/***/ }),
+
 /***/ 168:
 /***/ (function(module) {
 
@@ -2425,24 +2440,28 @@ var __importStar = (this && this.__importStar) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(__webpack_require__(470));
-const github_1 = __webpack_require__(469);
+const github = __importStar(__webpack_require__(469));
+const github_1 = __webpack_require__(146);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             // const apiKey = core.getInput('api_key', {required: true})
             const githubToken = core.getInput('github_token', { required: true });
-            const payload = github_1.context.payload;
+            const context = github.context;
             let commits;
-            const octokit = github_1.getOctokit(githubToken);
-            switch (github_1.context.eventName) {
-                case 'push':
-                    commits = payload.commits;
+            switch (context.eventName) {
+                case github_1.ContextEventName.Push:
+                    commits = context.payload.commits.map(commit => commit.id);
                     break;
-                case 'pull_request':
-                    commits = yield octokit.paginate(`GET ${payload.pull_request.commits_url}`);
+                case github_1.ContextEventName.PullRequest:
+                    commits = yield github
+                        .getOctokit(githubToken)
+                        .paginate('GET /repos/:owner/:repo/pulls/:pull_number/commits', Object.assign(Object.assign({}, github.context.repo), { pull_number: context.payload.number // eslint-disable-line @typescript-eslint/camelcase
+                     }))
+                        .then(response => response.map(commit => commit.sha));
                     break;
                 default:
-                    throw new Error(`Unsupported event '${github_1.context.eventName}'`);
+                    assertUnsupportedEvent(context);
             }
             core.debug(`commits: ${JSON.stringify(commits, null, 4)}`);
         }
@@ -2451,6 +2470,9 @@ function run() {
             core.setFailed(error.message);
         }
     });
+}
+function assertUnsupportedEvent(context) {
+    throw new Error(`Unsupported event ${context.eventName}`);
 }
 run();
 
