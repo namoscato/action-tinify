@@ -30,11 +30,13 @@
   "dependencies": {
     "@actions/core": "^1.2.0",
     "@actions/github": "^3.0.0",
+    "bytes": "^3.1.0",
     "mime": "^2.4.6",
     "tinify": "^1.6.0-beta.2"
   },
   "devDependencies": {
     "@octokit/webhooks": "^7.6.2",
+    "@types/bytes": "^3.1.0",
     "@types/jest": "^24.0.23",
     "@types/mime": "^2.0.2",
     "@types/node": "^12.7.12",

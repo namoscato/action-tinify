@@ -1,20 +1,17 @@
 import * as core from '@actions/core'
 import * as mime from 'mime'
+import Image from 'image'
 
 const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png']
 
 export default class Images {
-  private images: Set<string>
+  private images: Set<Image>
 
   constructor() {
     this.images = new Set()
   }
 
   addFile(filename: string): void {
-    if (this.images.has(filename)) {
-      return core.debug(`[${filename}] Skipping duplicate file`)
-    }
-
     const mimeType = mime.getType(filename)
 
     if (null === mimeType) {
@@ -28,11 +25,10 @@ export default class Images {
     }
 
     core.debug(`[${filename}] Adding ${mimeType} image`)
-
-    this.images.add(filename)
+    this.images.add(new Image(filename))
   }
 
-  all(): IterableIterator<string> {
+  all(): IterableIterator<Image> {
     return this.images.values()
   }
 }

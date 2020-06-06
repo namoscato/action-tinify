@@ -1871,6 +1871,201 @@ module.exports = windowsRelease;
 
 /***/ }),
 
+/***/ 63:
+/***/ (function(module) {
+
+"use strict";
+/*!
+ * bytes
+ * Copyright(c) 2012-2014 TJ Holowaychuk
+ * Copyright(c) 2015 Jed Watson
+ * MIT Licensed
+ */
+
+
+
+/**
+ * Module exports.
+ * @public
+ */
+
+module.exports = bytes;
+module.exports.format = format;
+module.exports.parse = parse;
+
+/**
+ * Module variables.
+ * @private
+ */
+
+var formatThousandsRegExp = /\B(?=(\d{3})+(?!\d))/g;
+
+var formatDecimalsRegExp = /(?:\.0*|(\.[^0]+)0+)$/;
+
+var map = {
+  b:  1,
+  kb: 1 << 10,
+  mb: 1 << 20,
+  gb: 1 << 30,
+  tb: Math.pow(1024, 4),
+  pb: Math.pow(1024, 5),
+};
+
+var parseRegExp = /^((-|\+)?(\d+(?:\.\d+)?)) *(kb|mb|gb|tb|pb)$/i;
+
+/**
+ * Convert the given value in bytes into a string or parse to string to an integer in bytes.
+ *
+ * @param {string|number} value
+ * @param {{
+ *  case: [string],
+ *  decimalPlaces: [number]
+ *  fixedDecimals: [boolean]
+ *  thousandsSeparator: [string]
+ *  unitSeparator: [string]
+ *  }} [options] bytes options.
+ *
+ * @returns {string|number|null}
+ */
+
+function bytes(value, options) {
+  if (typeof value === 'string') {
+    return parse(value);
+  }
+
+  if (typeof value === 'number') {
+    return format(value, options);
+  }
+
+  return null;
+}
+
+/**
+ * Format the given value in bytes into a string.
+ *
+ * If the value is negative, it is kept as such. If it is a float,
+ * it is rounded.
+ *
+ * @param {number} value
+ * @param {object} [options]
+ * @param {number} [options.decimalPlaces=2]
+ * @param {number} [options.fixedDecimals=false]
+ * @param {string} [options.thousandsSeparator=]
+ * @param {string} [options.unit=]
+ * @param {string} [options.unitSeparator=]
+ *
+ * @returns {string|null}
+ * @public
+ */
+
+function format(value, options) {
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+
+  var mag = Math.abs(value);
+  var thousandsSeparator = (options && options.thousandsSeparator) || '';
+  var unitSeparator = (options && options.unitSeparator) || '';
+  var decimalPlaces = (options && options.decimalPlaces !== undefined) ? options.decimalPlaces : 2;
+  var fixedDecimals = Boolean(options && options.fixedDecimals);
+  var unit = (options && options.unit) || '';
+
+  if (!unit || !map[unit.toLowerCase()]) {
+    if (mag >= map.pb) {
+      unit = 'PB';
+    } else if (mag >= map.tb) {
+      unit = 'TB';
+    } else if (mag >= map.gb) {
+      unit = 'GB';
+    } else if (mag >= map.mb) {
+      unit = 'MB';
+    } else if (mag >= map.kb) {
+      unit = 'KB';
+    } else {
+      unit = 'B';
+    }
+  }
+
+  var val = value / map[unit.toLowerCase()];
+  var str = val.toFixed(decimalPlaces);
+
+  if (!fixedDecimals) {
+    str = str.replace(formatDecimalsRegExp, '$1');
+  }
+
+  if (thousandsSeparator) {
+    str = str.replace(formatThousandsRegExp, thousandsSeparator);
+  }
+
+  return str + unitSeparator + unit;
+}
+
+/**
+ * Parse the string value into an integer in bytes.
+ *
+ * If no unit is given, it is assumed the value is in bytes.
+ *
+ * @param {number|string} val
+ *
+ * @returns {number|null}
+ * @public
+ */
+
+function parse(val) {
+  if (typeof val === 'number' && !isNaN(val)) {
+    return val;
+  }
+
+  if (typeof val !== 'string') {
+    return null;
+  }
+
+  // Test if the string passed is valid
+  var results = parseRegExp.exec(val);
+  var floatValue;
+  var unit = 'b';
+
+  if (!results) {
+    // Nothing could be extracted from the given string
+    floatValue = parseInt(val, 10);
+    unit = 'b'
+  } else {
+    // Retrieve the value and the unit
+    floatValue = parseFloat(results[1]);
+    unit = results[4].toLowerCase();
+  }
+
+  return Math.floor(map[unit] * floatValue);
+}
+
+
+/***/ }),
+
+/***/ 82:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+const tinify_1 = __webpack_require__(990);
+const Client_1 = __webpack_require__(660);
+const Result_1 = __webpack_require__(597);
+const ResultMeta_1 = __webpack_require__(410);
+const Source_1 = __webpack_require__(134);
+const Error_1 = __webpack_require__(122);
+tinify_1.default.Client = Client_1.default;
+tinify_1.default.ResultMeta = ResultMeta_1.default;
+tinify_1.default.Result = Result_1.default;
+tinify_1.default.Source = Source_1.default;
+tinify_1.default.Error = Error_1.Error;
+tinify_1.default.AccountError = Error_1.AccountError;
+tinify_1.default.ClientError = Error_1.ClientError;
+tinify_1.default.ServerError = Error_1.ServerError;
+tinify_1.default.ConnectionError = Error_1.ConnectionError;
+module.exports = tinify_1.default;
+
+
+/***/ }),
+
 /***/ 87:
 /***/ (function(module) {
 
@@ -1914,6 +2109,66 @@ const macosRelease = release => {
 module.exports = macosRelease;
 // TODO: remove this in the next major version
 module.exports.default = macosRelease;
+
+
+/***/ }),
+
+/***/ 122:
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+class Error extends global.Error {
+    /** @internal */
+    constructor(message, type, status) {
+        super();
+        global.Error.captureStackTrace(this, Error);
+        if (status) {
+            this.status = status;
+            this.message = message + ` (HTTP ${status}/${type})`;
+        }
+        else {
+            this.message = message;
+        }
+    }
+    /** @internal */
+    static create(message, type, status) {
+        let klass;
+        if (!status) {
+            klass = Error;
+        }
+        else if (status === 401 || status === 429) {
+            klass = AccountError;
+        }
+        else if (status >= 400 && status <= 499) {
+            klass = ClientError;
+        }
+        else if (status >= 500 && status <= 599) {
+            klass = ServerError;
+        }
+        else {
+            klass = Error;
+        }
+        if (!message) {
+            message = "No message was provided";
+        }
+        return new klass(message, type, status);
+    }
+}
+exports.Error = Error;
+class AccountError extends Error {
+}
+exports.AccountError = AccountError;
+class ClientError extends Error {
+}
+exports.ClientError = ClientError;
+class ServerError extends Error {
+}
+exports.ServerError = ServerError;
+class ConnectionError extends Error {
+}
+exports.ConnectionError = ConnectionError;
 
 
 /***/ }),
@@ -1972,6 +2227,71 @@ exports.getApiBaseUrl = getApiBaseUrl;
 /***/ (function(module) {
 
 module.exports = require("child_process");
+
+/***/ }),
+
+/***/ 134:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const tinify_1 = __webpack_require__(990);
+const compat_1 = __webpack_require__(464);
+class Source {
+    /** @internal */
+    constructor(url, commands) {
+        this._url = url;
+        this._commands = commands || {};
+    }
+    static fromFile(path) {
+        const location = compat_1.readFile(path).then(data => {
+            const response = tinify_1.default.client.request("post", "/shrink", data);
+            return response.then(res => res.headers.location);
+        });
+        return new tinify_1.default.Source(location);
+    }
+    static fromBuffer(data) {
+        const response = tinify_1.default.client.request("post", "/shrink", data);
+        const location = response.then(res => res.headers.location);
+        return new tinify_1.default.Source(location);
+    }
+    static fromUrl(url) {
+        const response = tinify_1.default.client.request("post", "/shrink", { source: { url } });
+        const location = response.then(res => res.headers.location);
+        return new tinify_1.default.Source(location);
+    }
+    preserve(...options) {
+        if (Array.isArray(options[0]))
+            options = options[0];
+        return new tinify_1.default.Source(this._url, Object.assign({ preserve: options }, this._commands));
+    }
+    resize(options) {
+        return new tinify_1.default.Source(this._url, Object.assign({ resize: options }, this._commands));
+    }
+    store(options) {
+        const commands = Object.assign({ store: options }, this._commands);
+        const response = this._url.then(url => {
+            return tinify_1.default.client.request("post", url, commands);
+        });
+        return new tinify_1.default.ResultMeta(response.then(res => res.headers));
+    }
+    result() {
+        const commands = this._commands;
+        const response = this._url.then(url => {
+            return tinify_1.default.client.request("get", url, commands);
+        });
+        return new tinify_1.default.Result(response.then(res => res.headers), response.then(res => res.body));
+    }
+    toFile(path, callback) {
+        return this.result().toFile(path, callback);
+    }
+    toBuffer(callback) {
+        return this.result().toBuffer(callback);
+    }
+}
+exports.default = Source;
+
 
 /***/ }),
 
@@ -2305,21 +2625,6 @@ module.exports.MaxBufferError = MaxBufferError;
 
 /***/ }),
 
-/***/ 146:
-/***/ (function(__unusedmodule, exports) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-var ContextEventName;
-(function (ContextEventName) {
-    ContextEventName["Push"] = "push";
-    ContextEventName["PullRequest"] = "pull_request";
-})(ContextEventName = exports.ContextEventName || (exports.ContextEventName = {}));
-
-
-/***/ }),
-
 /***/ 168:
 /***/ (function(module) {
 
@@ -2444,12 +2749,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(__webpack_require__(470));
 const github = __importStar(__webpack_require__(469));
-const github_1 = __webpack_require__(146);
+const github_1 = __webpack_require__(430);
 const images_1 = __importDefault(__webpack_require__(666));
+const tinify_1 = __importDefault(__webpack_require__(82));
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            // const apiKey = core.getInput('api_key', {required: true})
+            tinify_1.default.key = core.getInput('api_key', { required: true });
             const githubToken = core.getInput('github_token', { required: true });
             const octokit = github.getOctokit(githubToken);
             const context = github.context;
@@ -2478,7 +2784,10 @@ function run() {
                     images.addFile(file.filename);
                 }
             }
-            core.debug(`filenames: \n${Array.from(images.all()).join('\n')}`);
+            for (const image of images.all()) {
+                core.info(`[${image.getFilename()}] Compressing image`);
+                yield image.compress();
+            }
         }
         catch (error) {
             core.debug(error.stack);
@@ -3020,6 +3329,14 @@ isStream.duplex = function (stream) {
 isStream.transform = function (stream) {
 	return isStream.duplex(stream) && typeof stream._transform === 'function' && typeof stream._transformState === 'object';
 };
+
+
+/***/ }),
+
+/***/ 338:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+module.exports = __webpack_require__(418);
 
 
 /***/ }),
@@ -5108,11 +5425,472 @@ module.exports = readShebang;
 
 /***/ }),
 
+/***/ 410:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const compat_1 = __webpack_require__(464);
+const intify = (v) => parseInt(v, 10);
+class ResultMeta {
+    /** @internal */
+    constructor(meta) {
+        this._meta = meta;
+    }
+    /** @internal */
+    meta() {
+        return this._meta;
+    }
+    width(callback) {
+        return compat_1.nodeify(this.meta().then(meta => intify(meta["image-width"])), callback);
+    }
+    height(callback) {
+        return compat_1.nodeify(this.meta().then(meta => intify(meta["image-height"])), callback);
+    }
+    location(callback) {
+        return compat_1.nodeify(this.meta().then(meta => meta["location"]), callback);
+    }
+}
+exports.default = ResultMeta;
+
+
+/***/ }),
+
 /***/ 413:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 module.exports = __webpack_require__(141);
 
+
+/***/ }),
+
+/***/ 417:
+/***/ (function(module) {
+
+module.exports = require("crypto");
+
+/***/ }),
+
+/***/ 418:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+
+var url = __webpack_require__(835);
+var http = __webpack_require__(605);
+var httpRequest = http.request;
+var https = __webpack_require__(211);
+var httpsRequest = https.request;
+var tls = __webpack_require__(16);
+var util = __webpack_require__(669);
+var ntlm = __webpack_require__(488);
+
+function ProxyingAgent(options, agent) {
+  this.openSockets = {};
+  this.options = util._extend({}, options);
+  this.options.proxy = url.parse(this.options.proxy);
+  this.options.tunnel = this.options.tunnel || false;
+  this.options.ssl = this.options.proxy.protocol ? this.options.proxy.protocol.toLowerCase() == 'https:' : false;
+  this.options.host = this.options.proxy.hostname;
+  this.options.port = this.options.proxy.port || (this.options.ssl ? 443 : 80);
+  this.options.authType = this.options.authType || 'basic';
+
+  if (this.options.authType === 'ntlm') {
+    if (!this.options.proxy.auth) {
+      throw new Error('NTLM authentication credentials must be provided');
+    }
+    if (!this.options.ntlm || !this.options.ntlm.domain) {
+      throw new Error('NTLM domain must be provided');
+    }
+  }
+
+  // base64 decode proxy auth if necessary
+  var auth = this.options.proxy.auth;
+  if (auth && auth.indexOf(':') == -1) {
+    auth = new Buffer(auth, 'base64').toString('ascii');
+    // if after decoding there still isn't a colon, then revert back to the original value
+    if (auth.indexOf(':') == -1) {
+      auth = this.options.proxy.auth;
+    }
+    this.options.proxy.auth = auth;
+  }
+
+  // select the Agent type to use based on the proxy protocol
+  this.agent = agent;
+  this.agent.call(this, this.options);
+}
+
+/**
+ * Get absolutURI without port when using default
+ */
+ProxyingAgent.prototype.getAbsoluteURI = function(ssl, host, port, path) {
+  var absoluteUri = (ssl ? 'https://' : 'http://') + host;
+
+  if (typeof port === 'string') {
+    // Check if target url have specified port and add it to absoluteUri
+    // When port is defined in target url then we get it as a string otherwise it's a number
+    absoluteUri += ':' + port;
+  }
+
+  absoluteUri += path;
+
+  return absoluteUri;
+};
+
+/**
+ * Overrides the 'addRequest' Agent method for establishing a socket with the proxy
+ * that will e used to issue the actual request
+ */
+ProxyingAgent.prototype.addRequest = function(req, host, port) {
+  if (typeof host === 'object') {
+    port = host.port;
+    host = host.hostname || host.host;
+  }
+  if (this.options.authType === 'ntlm') {
+    this.startNtlm(req, host, port);
+  } else {
+    this.startProxying(req, host, port);
+  }
+};
+
+/**
+ * Start proxying the request through the proxy server.
+ * This automatically opens a tunnel through the proxy if needed,
+ * or just issues a regular request for the proxy to transfer
+ */
+ProxyingAgent.prototype.startProxying = function(req, host, port) {
+
+  // setup the basic authentication header for the proxy.
+  // we do this only if we haven't already authenticated through NTLM
+  if (this.options.authType == 'basic' && this.options.proxy.auth) {
+    this.authHeader = {
+      header: 'Proxy-Authorization',
+      value: 'Basic ' + new Buffer(this.options.proxy.auth).toString('base64')
+    }
+  }
+
+  // if we need to create a tunnel to the server via the CONNECT method
+  if (this.options.tunnel) {
+    var tunnelOptions = util._extend({}, this.options);
+    tunnelOptions.method = 'CONNECT';
+    tunnelOptions.path = host+':'+port;
+    tunnelOptions.hostname = this.options.proxy.hostname;
+    tunnelOptions.port = this.options.proxy.port;
+    tunnelOptions.headers = tunnelOptions.headers || {};
+
+    // if we already have a socket open then execute the CONNECT method on it
+    var socket = this.getSocket(req);
+    if (socket) {
+      tunnelOptions.agent = new SocketAgent(socket);
+    }
+
+    // add the authentication header
+    if (this.authHeader) {
+      tunnelOptions.headers[this.authHeader.header] = this.authHeader.value;
+      if (this.authHeader.keepAlive) {
+        tunnelOptions.headers["Proxy-Connection"] = "Keep-Alive";
+      }
+    }
+
+    // create a new CONNECT request to the proxy to create the tunnel
+    // to the server
+    var newReq = this.createNewRequest(tunnelOptions);
+
+    newReq.once('close', function() {
+      this.emitError(req, 'Tunnel creation failed. Socket closed prematurely');
+    }.bind(this));
+
+    newReq.once('error', function(error) {
+      this.emitError(req, 'Tunnel creation failed. Socket error: ' + error);
+    }.bind(this));
+
+    // listen for the CONNECT event to complete and execute the original request
+    // on the TLSed socket
+    newReq.once('connect', function(response, socket, head) {
+      newReq.removeAllListeners();
+      if (response.statusCode != 200) {
+        this.emitError(req, 'Tunnel creation failed. Received status code ' + response.statusCode);
+        return;
+      }
+      var tlsOptions = this.options.tlsOptions || {};
+      tlsOptions.socket = response.socket;
+      tlsOptions.servername = host;
+
+      // upgrade the socket to TLS
+      var tlsSocket = tls.connect(tlsOptions, function() {
+        this.setSocket(req, tlsSocket);
+        this.execRequest(req, this.options.host, this.options.port);
+      }.bind(this));
+
+      tlsSocket.once('error', function(error) {
+        this.emitError(req, 'Tunnel socket error: ' + error);
+      }.bind(this));
+
+    }.bind(this));
+
+    // execute the CONNECT method to create the tunnel
+    newReq.end();
+  } else {
+    // issue a regular proxy request
+    req.path = this.getAbsoluteURI(this.options.ssl, host, port, req.path);
+    if (this.authHeader) {
+      req.setHeader(this.authHeader.header, this.authHeader.value);
+    }
+    this.execRequest(req, this.options.host, this.options.port);
+  }
+};
+
+/**
+ * Start an NTLM authentication process. The result is an open socket that will be used
+ * to issue the actual request or open a tunnel on
+ */
+ProxyingAgent.prototype.startNtlm = function(req, host, port) {
+  var ntlmOptions = util._extend({}, this.options);
+  ntlmOptions.method = ntlmOptions.method || 'GET'; // just for the NTLM handshake
+  ntlmOptions.path = this.getAbsoluteURI(this.options.ssl, host, port, req.path);
+  ntlmOptions.ntlm.workstation = ntlmOptions.ntlm.workstation || __webpack_require__(87).hostname();
+
+  var creds = this.options.proxy.auth.match(/([^:]*):?(.*)/);
+  ntlmOptions.ntlm.username = creds[1];
+  ntlmOptions.ntlm.password = creds[2];
+
+  // set the NTLM type 1 message header
+  ntlmOptions.headers = ntlmOptions.headers || {};
+  ntlmOptions.headers['Proxy-Authorization'] = ntlm.createType1Message(ntlmOptions.ntlm);
+  ntlmOptions.headers['Proxy-Connection'] = "Keep-Alive";
+
+  // create the NTLM type 1 request
+  var newReq = this.createNewRequest(ntlmOptions);
+
+  // capture the response and set the NTLM type 3 authorization header
+  // that will be used when issuing the actual request
+  newReq.once('response', function(response) {
+    if (response.statusCode !== 407 || !response.headers['proxy-authenticate']) {
+      this.emitError(req, 'did not receive NTLM type 2 message');
+      return;
+    }
+    var type2msg = ntlm.parseType2Message(response.headers['proxy-authenticate'], function(error) {
+      this.emitError(req, error);
+      return null;
+    }.bind(this));
+
+    if (!type2msg) {
+      return;
+    }
+
+    // capture the socket
+    this.setSocket(req, response.socket);
+
+    this.authHeader = {
+      header: 'Proxy-Authorization',
+      value: ntlm.createType3Message(type2msg, ntlmOptions.ntlm),
+      keepAlive: true
+    }
+
+    // read all the data from the socket as it may contain a body that should be discarded
+    response.on('data', function() {
+      // just consume the body
+    }.bind(this));
+
+    // start proxying
+    this.startProxying(req, host, port);
+
+  }.bind(this));
+
+  // start proxying the actual request only when there is not more body to read.
+  // the socket should have already been captured and associated with the request
+  newReq.once('close', function() {
+    this.emitError(req, 'NTLM failed. Socket closed prematurely');
+  }.bind(this));
+
+  newReq.once('error', function(error) {
+    this.emitError(req, 'NTLM failed. Socket error: ' + error);
+  }.bind(this));
+
+  // issue the NTLM type 1 request
+  newReq.end();
+};
+
+/**
+ * Create a new request instance according the needed security
+ */
+ProxyingAgent.prototype.createNewRequest = function(options) {
+  if (options.ssl) {
+    return new httpsRequest(options);
+  }
+    return new httpRequest(options);
+};
+
+/**
+ * Execute the provided request by invoking the original Agent 'addRequest' method.
+ * If there is already a socket that was associated with the request, then it
+ * will be used for issuing the request (via the 'createSocket' method)
+ */
+ProxyingAgent.prototype.execRequest = function(req, host, port) {
+  this.agent.prototype.addRequest.call(this, req, host, port);
+
+  // if there is an associated socket to this request then the association is removed
+  // since the socket was already passed to the request
+  if (this.openSockets[req]) {
+    delete this.openSockets[req];
+  }
+};
+
+/**
+ * Remember a socket and associate it with a specific request.
+ * When the 'createSocket' method will be called to execute the actual request
+ * then the already existing socket will be used
+ */
+ProxyingAgent.prototype.setSocket = function(req, socket) {
+
+  this.openSockets[req] = socket;
+  var onClose = function() {
+    if (this.openSockets[req]) {
+      delete this.openSockets[req];
+    }
+  }.bind(this);
+  this.openSockets[req].on('close', onClose);
+};
+
+ProxyingAgent.prototype.getSocket = function(req) {
+  return this.openSockets[req];
+};
+
+/**
+ * This is called during the 'addRequest' call of the original Agent to return a
+ * new socket for executing the request. If a socket already exists then it is used
+ * instead of creating a new one.
+ */
+ProxyingAgent.prototype.createSocket = function() {
+
+  var req;
+  var cb;
+  if (typeof arguments[0] === 'object') {
+    req = arguments[0];
+    cb = arguments[2];
+  } else {
+    req = arguments[4];
+  }
+
+  if (this.openSockets[req]) {
+    if (cb) {
+      return cb(null, this.openSockets[req]);
+    } else {
+      return this.openSockets[req];
+    }
+  }
+  return this.agent.prototype.createSocket.apply(this, arguments);
+};
+
+ProxyingAgent.prototype.emitError = function(req, message) {
+  (req.socket || req).emit('error', new Error(message));
+};
+
+
+//======= SocketAgent
+
+/**
+ * A simple agent to execute a request on a given socket
+ */
+function SocketAgent(socket) {
+  this.socket = socket;
+}
+
+SocketAgent.prototype.addRequest = function(req, host, port) {
+  req.onSocket(this.socket);
+};
+
+/**
+ * HttpProxyingAgent
+ * @param options
+ * @constructor
+ */
+function HttpProxyingAgent(options) {
+  ProxyingAgent.call(this, options, http.Agent);
+}
+util.inherits(HttpProxyingAgent, http.Agent);
+util._extend(HttpProxyingAgent.prototype, ProxyingAgent.prototype);
+
+/**
+ * HttpsProxyingAgent
+ * @param options
+ * @constructor
+ */
+function HttpsProxyingAgent(options) {
+  options.tunnel = true;
+  ProxyingAgent.call(this, options, https.Agent);
+}
+util.inherits(HttpsProxyingAgent, https.Agent);
+util._extend(HttpsProxyingAgent.prototype, ProxyingAgent.prototype);
+
+/**
+ * Create the proxying agent
+ * @param proxy
+ * @param target
+ * @returns {*}
+ */
+exports.create = function(proxy, target) {
+  if (typeof proxy === 'string') {
+    proxy = {proxy: proxy}
+  }
+
+  if (target.toLowerCase().indexOf('https:') === 0) {
+    return new HttpsProxyingAgent(proxy);
+  }
+  return new HttpProxyingAgent(proxy);
+};
+
+/**
+ * Set a global agent to forward all http and https requests through the specified proxy
+ * @param proxy
+ */
+exports.globalize = function (proxy) {
+    var copyProxy = JSON.parse(JSON.stringify(proxy));
+    var copySecureProxy = JSON.parse(JSON.stringify(proxy));
+    var secureAgent = this.create(copySecureProxy, 'https://');
+    var nonSecureAgent = this.create(copyProxy, 'http://');
+
+    http.request = function (options, callback) {
+        if (typeof options === 'string') {
+            options = url.parse(options);
+        }
+        if (!options.agent) {
+          options.agent = nonSecureAgent;
+        }
+        return httpRequest(options, callback);
+    };
+
+    http.get = function get(options, cb) {
+        const req = http.request(options, cb);
+        req.end();
+        return req;
+    };
+
+    https.request = function (options, callback) {
+        if (typeof options === 'string') {
+            options = url.parse(options);
+        }
+        if (!options.agent) {
+            options.agent = secureAgent;
+        }
+        return httpsRequest(options, callback);
+    };
+    https.get = function get(options, cb) {
+        const req = https.request(options, cb);
+        req.end();
+        return req;
+    };
+};
+
+
+/***/ }),
+
+/***/ 425:
+/***/ (function(module) {
+
+module.exports = {"_from":"tinify","_id":"tinify@1.6.0-beta.2","_inBundle":false,"_integrity":"sha512-jzOtntNLiRRhMN5AlRlxapUhNYVH3YhU2cfk3Xg2u5g+t4ZfdXe97TqYvIl7cyenfXmqo5SCZet7t4alv53XvQ==","_location":"/tinify","_phantomChildren":{},"_requested":{"type":"tag","registry":true,"raw":"tinify","name":"tinify","escapedName":"tinify","rawSpec":"","saveSpec":null,"fetchSpec":"latest"},"_requiredBy":["#USER","/"],"_resolved":"https://registry.npmjs.org/tinify/-/tinify-1.6.0-beta.2.tgz","_shasum":"5985ca021d11685d846c53ac8465dce78116adfe","_spec":"tinify","_where":"/Users/namoscato/dev/git/action-tinify","author":{"name":"Rolf Timmermans","email":"rolftimmermans@voormedia.com"},"bugs":{"url":"https://github.com/tinify/tinify-nodejs/issues"},"bugs:":"https://github.com/tinify/tinify-nodejs/issues","bundleDependencies":false,"dependencies":{"promise-nodeify":">= 0.1","proxying-agent":">= 2.1"},"deprecated":false,"description":"Node.js client for the Tinify API. Tinify compresses your images intelligently. Read more at https://tinify.com.","devDependencies":{"@types/node":"^10.3.1","chai":"^2.3.0","mocha":"^2.2.5","nock":"^9.0.14","semver":"*","tmp":"^0.0.26","tslint":"^5.10.0","typescript":"^2.9.1"},"engines":{"node":">= 4.0"},"files":["lib"],"homepage":"https://tinify.com/developers","keywords":["tinify","tinypng","tinyjpg","compress","optimize","images","api"],"license":"MIT","main":"lib/index.js","name":"tinify","repository":{"type":"git","url":"git+https://github.com/tinify/tinify-nodejs.git"},"scripts":{"integration":"rm -rf lib/**.{js,ts} && tsc && mocha --reporter dot test/integration.js","test":"rm -rf lib/**.{js,ts} && tsc && tsc --noEmit test/tinify-typing-test.ts && mocha --reporter dot test/*-test.js"},"types":"lib/index.d.ts","version":"1.6.0-beta.2"};
 
 /***/ }),
 
@@ -5159,6 +5937,21 @@ function errname(uv, code) {
 	return `Unknown system error ${code}`;
 }
 
+
+
+/***/ }),
+
+/***/ 430:
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+var ContextEventName;
+(function (ContextEventName) {
+    ContextEventName["Push"] = "push";
+    ContextEventName["PullRequest"] = "pull_request";
+})(ContextEventName = exports.ContextEventName || (exports.ContextEventName = {}));
 
 
 /***/ }),
@@ -5649,6 +6442,38 @@ exports.RequestError = RequestError;
 
 /***/ }),
 
+/***/ 464:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const fs = __webpack_require__(747);
+/** @internal */
+function promisify(fn) {
+    return function () {
+        const args = Array.from(arguments);
+        return new Promise((resolve, reject) => {
+            args.push((err, value) => {
+                if (err)
+                    return reject(err);
+                resolve(value);
+            });
+            fn.apply(undefined, args);
+        });
+    };
+}
+/** @internal */
+exports.readFile = promisify(fs.readFile);
+/** @internal */
+exports.writeFile = promisify(fs.writeFile);
+/** @internal */
+const nodeify = __webpack_require__(791);
+exports.nodeify = nodeify;
+
+
+/***/ }),
+
 /***/ 469:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
@@ -5891,6 +6716,399 @@ function getState(name) {
 }
 exports.getState = getState;
 //# sourceMappingURL=core.js.map
+
+/***/ }),
+
+/***/ 488:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+var crypto = __webpack_require__(417);
+
+var flags = {
+  NTLM_NegotiateUnicode                :  0x00000001,
+  NTLM_NegotiateOEM                    :  0x00000002,
+  NTLM_RequestTarget                   :  0x00000004,
+  NTLM_Unknown9                        :  0x00000008,
+  NTLM_NegotiateSign                   :  0x00000010,
+  NTLM_NegotiateSeal                   :  0x00000020,
+  NTLM_NegotiateDatagram               :  0x00000040,
+  NTLM_NegotiateLanManagerKey          :  0x00000080,
+  NTLM_Unknown8                        :  0x00000100,
+  NTLM_NegotiateNTLM                   :  0x00000200,
+  NTLM_NegotiateNTOnly                 :  0x00000400,
+  NTLM_Anonymous                       :  0x00000800,
+  NTLM_NegotiateOemDomainSupplied      :  0x00001000,
+  NTLM_NegotiateOemWorkstationSupplied :  0x00002000,
+  NTLM_Unknown6                        :  0x00004000,
+  NTLM_NegotiateAlwaysSign             :  0x00008000,
+  NTLM_TargetTypeDomain                :  0x00010000,
+  NTLM_TargetTypeServer                :  0x00020000,
+  NTLM_TargetTypeShare                 :  0x00040000,
+  NTLM_NegotiateExtendedSecurity       :  0x00080000,
+  NTLM_NegotiateIdentify               :  0x00100000,
+  NTLM_Unknown5                        :  0x00200000,
+  NTLM_RequestNonNTSessionKey          :  0x00400000,
+  NTLM_NegotiateTargetInfo             :  0x00800000,
+  NTLM_Unknown4                        :  0x01000000,
+  NTLM_NegotiateVersion                :  0x02000000,
+  NTLM_Unknown3                        :  0x04000000,
+  NTLM_Unknown2                        :  0x08000000,
+  NTLM_Unknown1                        :  0x10000000,
+  NTLM_Negotiate128                    :  0x20000000,
+  NTLM_NegotiateKeyExchange            :  0x40000000,
+  NTLM_Negotiate56                     :  0x80000000
+}
+var typeflags = {
+  NTLM_TYPE1_FLAGS : 	  flags.NTLM_NegotiateUnicode
+    + flags.NTLM_NegotiateOEM
+    + flags.NTLM_RequestTarget
+    + flags.NTLM_NegotiateNTLM
+    + flags.NTLM_NegotiateOemDomainSupplied
+    + flags.NTLM_NegotiateOemWorkstationSupplied
+    + flags.NTLM_NegotiateAlwaysSign
+    + flags.NTLM_NegotiateExtendedSecurity
+    + flags.NTLM_NegotiateVersion
+    + flags.NTLM_Negotiate128
+    + flags.NTLM_Negotiate56,
+
+  NTLM_TYPE2_FLAGS :    flags.NTLM_NegotiateUnicode
+    + flags.NTLM_RequestTarget
+    + flags.NTLM_NegotiateNTLM
+    + flags.NTLM_NegotiateAlwaysSign
+    + flags.NTLM_NegotiateExtendedSecurity
+    + flags.NTLM_NegotiateTargetInfo
+    + flags.NTLM_NegotiateVersion
+    + flags.NTLM_Negotiate128
+    + flags.NTLM_Negotiate56
+}
+
+function createType1Message(options){
+  var domain = escape(options.domain.toUpperCase());
+  var workstation = escape(options.workstation.toUpperCase());
+  var protocol = 'NTLMSSP\0';
+
+  var BODY_LENGTH = 40;
+
+  var type1flags = typeflags.NTLM_TYPE1_FLAGS;
+  if(!domain || domain == '')
+    type1flags = type1flags - flags.NTLM_NegotiateOemDomainSupplied;
+
+  var pos = 0;
+  var buf = new Buffer(BODY_LENGTH + domain.length + workstation.length);
+
+
+  buf.write(protocol, pos, protocol.length); pos += protocol.length; // protocol
+  buf.writeUInt32LE(1, pos); pos += 4;          // type 1
+  buf.writeUInt32LE(type1flags, pos); pos += 4; // TYPE1 flag
+
+  buf.writeUInt16LE(domain.length, pos); pos += 2; // domain length
+  buf.writeUInt16LE(domain.length, pos); pos += 2; // domain max length
+  buf.writeUInt32LE(BODY_LENGTH + workstation.length, pos); pos += 4; // domain buffer offset
+
+  buf.writeUInt16LE(workstation.length, pos); pos += 2; // workstation length
+  buf.writeUInt16LE(workstation.length, pos); pos += 2; // workstation max length
+  buf.writeUInt32LE(BODY_LENGTH, pos); pos += 4; // workstation buffer offset
+
+  buf.writeUInt8(5, pos); pos += 1;      //ProductMajorVersion
+  buf.writeUInt8(1, pos); pos += 1;      //ProductMinorVersion
+  buf.writeUInt16LE(2600, pos); pos += 2; //ProductBuild
+
+  buf.writeUInt8(0 , pos); pos += 1; //VersionReserved1
+  buf.writeUInt8(0 , pos); pos += 1; //VersionReserved2
+  buf.writeUInt8(0 , pos); pos += 1; //VersionReserved3
+  buf.writeUInt8(15, pos); pos += 1; //NTLMRevisionCurrent
+
+  buf.write(workstation, pos, workstation.length, 'ascii'); pos += workstation.length; // workstation string
+  buf.write(domain     , pos, domain.length     , 'ascii'); pos += domain.length;
+
+  return 'NTLM ' + buf.toString('base64');
+}
+
+function parseType2Message(rawmsg, callback){
+  var match = rawmsg.match(/NTLM (.+)?/);
+  if(!match || !match[1])
+    return callback(new Error("Couldn't find NTLM in the message type2 comming from the server"));
+
+  var buf = new Buffer(match[1], 'base64');
+
+  var msg = {};
+
+  msg.signature = buf.slice(0, 8);
+  msg.type = buf.readInt16LE(8);
+
+  if(msg.type != 2)
+    return callback(new Error("Server didn't return a type 2 message"));
+
+  msg.targetNameLen = buf.readInt16LE(12);
+  msg.targetNameMaxLen = buf.readInt16LE(14);
+  msg.targetNameOffset = buf.readInt32LE(16);
+  msg.targetName  = buf.slice(msg.targetNameOffset, msg.targetNameOffset + msg.targetNameMaxLen);
+
+  msg.negotiateFlags = buf.readInt32LE(20);
+  msg.serverChallenge = buf.slice(24, 32);
+  msg.reserved = buf.slice(32, 40);
+
+  if(msg.negotiateFlags & flags.NTLM_NegotiateTargetInfo){
+    msg.targetInfoLen = buf.readInt16LE(40);
+    msg.targetInfoMaxLen = buf.readInt16LE(42);
+    msg.targetInfoOffset = buf.readInt32LE(44);
+    msg.targetInfo = buf.slice(msg.targetInfoOffset, msg.targetInfoOffset + msg.targetInfoLen);
+  }
+  return msg;
+}
+
+function createType3Message(msg2, options){
+  var nonce = msg2.serverChallenge;
+  var username = options.username;
+  var password = options.password;
+  var negotiateFlags = msg2.negotiateFlags;
+
+  var isUnicode = negotiateFlags & flags.NTLM_NegotiateUnicode;
+  var isNegotiateExtendedSecurity = negotiateFlags & flags.NTLM_NegotiateExtendedSecurity;
+
+  var BODY_LENGTH = 72;
+
+  var domainName = escape(options.domain.toUpperCase());
+  var workstation = escape(options.workstation.toUpperCase());
+
+  var workstationBytes, domainNameBytes, usernameBytes, encryptedRandomSessionKeyBytes;
+
+  var encryptedRandomSessionKey = "";
+  if(isUnicode){
+    workstationBytes = new Buffer(workstation, 'utf16le');
+    domainNameBytes = new Buffer(domainName, 'utf16le');
+    usernameBytes = new Buffer(username, 'utf16le');
+    encryptedRandomSessionKeyBytes = new Buffer(encryptedRandomSessionKey, 'utf16le');
+  }else{
+    workstationBytes = new Buffer(workstation, 'ascii');
+    domainNameBytes = new Buffer(domainName, 'ascii');
+    usernameBytes = new Buffer(username, 'ascii');
+    encryptedRandomSessionKeyBytes = new Buffer(encryptedRandomSessionKey, 'ascii');
+  }
+
+  var lmChallengeResponse = calc_resp(create_LM_hashed_password_v1(password), nonce);
+  var ntChallengeResponse = calc_resp(create_NT_hashed_password_v1(password), nonce);
+
+  if(isNegotiateExtendedSecurity){
+    var pwhash = create_NT_hashed_password_v1(password);
+    var clientChallenge = "";
+    for(var i=0; i < 8; i++){
+      clientChallenge += String.fromCharCode( Math.floor(Math.random()*256) );
+    }
+    var clientChallengeBytes = new Buffer(clientChallenge, 'ascii');
+    var challenges = ntlm2sr_calc_resp(pwhash, nonce, clientChallengeBytes);
+    lmChallengeResponse = challenges.lmChallengeResponse;
+    ntChallengeResponse = challenges.ntChallengeResponse;
+  }
+
+  var signature = 'NTLMSSP\0';
+
+  var pos = 0;
+  var buf = new Buffer(BODY_LENGTH + domainNameBytes.length + usernameBytes.length + workstationBytes.length + lmChallengeResponse.length + ntChallengeResponse.length + encryptedRandomSessionKeyBytes.length);
+
+  buf.write(signature, pos, signature.length); pos += signature.length;
+  buf.writeUInt32LE(3, pos); pos += 4;          // type 1
+
+  buf.writeUInt16LE(lmChallengeResponse.length, pos); pos += 2; // LmChallengeResponseLen
+  buf.writeUInt16LE(lmChallengeResponse.length, pos); pos += 2; // LmChallengeResponseMaxLen
+  buf.writeUInt32LE(BODY_LENGTH + domainNameBytes.length + usernameBytes.length + workstationBytes.length, pos); pos += 4; // LmChallengeResponseOffset
+
+  buf.writeUInt16LE(ntChallengeResponse.length, pos); pos += 2; // NtChallengeResponseLen
+  buf.writeUInt16LE(ntChallengeResponse.length, pos); pos += 2; // NtChallengeResponseMaxLen
+  buf.writeUInt32LE(BODY_LENGTH + domainNameBytes.length + usernameBytes.length + workstationBytes.length + lmChallengeResponse.length, pos); pos += 4; // NtChallengeResponseOffset
+
+  buf.writeUInt16LE(domainNameBytes.length, pos); pos += 2; // DomainNameLen
+  buf.writeUInt16LE(domainNameBytes.length, pos); pos += 2; // DomainNameMaxLen
+  buf.writeUInt32LE(BODY_LENGTH, pos); pos += 4; 			  // DomainNameOffset
+
+  buf.writeUInt16LE(usernameBytes.length, pos); pos += 2; // UserNameLen
+  buf.writeUInt16LE(usernameBytes.length, pos); pos += 2; // UserNameMaxLen
+  buf.writeUInt32LE(BODY_LENGTH + domainNameBytes.length, pos); pos += 4; // UserNameOffset
+
+  buf.writeUInt16LE(workstationBytes.length, pos); pos += 2; // WorkstationLen
+  buf.writeUInt16LE(workstationBytes.length, pos); pos += 2; // WorkstationMaxLen
+  buf.writeUInt32LE(BODY_LENGTH + domainNameBytes.length + usernameBytes.length, pos); pos += 4; // WorkstationOffset
+
+  buf.writeUInt16LE(encryptedRandomSessionKeyBytes.length, pos); pos += 2; // EncryptedRandomSessionKeyLen
+  buf.writeUInt16LE(encryptedRandomSessionKeyBytes.length, pos); pos += 2; // EncryptedRandomSessionKeyMaxLen
+  buf.writeUInt32LE(BODY_LENGTH + domainNameBytes.length + usernameBytes.length + workstationBytes.length + lmChallengeResponse.length + ntChallengeResponse.length, pos); pos += 4; // EncryptedRandomSessionKeyOffset
+
+  buf.writeUInt32LE(typeflags.NTLM_TYPE2_FLAGS, pos); pos += 4; // NegotiateFlags
+
+  buf.writeUInt8(5, pos); pos++; // ProductMajorVersion
+  buf.writeUInt8(1, pos); pos++; // ProductMinorVersion
+  buf.writeUInt16LE(2600, pos); pos += 2; // ProductBuild
+  buf.writeUInt8(0, pos); pos++; // VersionReserved1
+  buf.writeUInt8(0, pos); pos++; // VersionReserved2
+  buf.writeUInt8(0, pos); pos++; // VersionReserved3
+  buf.writeUInt8(15, pos); pos++; // NTLMRevisionCurrent
+
+  domainNameBytes.copy(buf, pos); pos += domainNameBytes.length;
+  usernameBytes.copy(buf, pos); pos += usernameBytes.length;
+  workstationBytes.copy(buf, pos); pos += workstationBytes.length;
+  lmChallengeResponse.copy(buf, pos); pos += lmChallengeResponse.length;
+  ntChallengeResponse.copy(buf, pos); pos += ntChallengeResponse.length;
+  encryptedRandomSessionKeyBytes.copy(buf, pos); pos += encryptedRandomSessionKeyBytes.length;
+
+  return 'NTLM ' + buf.toString('base64');
+}
+
+function create_LM_hashed_password_v1(password){
+  // fix the password length to 14 bytes
+  var password = password.toUpperCase();
+  var passwordBytes = new Buffer(password, 'ascii');
+
+  var passwordBytesPadded = new Buffer(14);
+  passwordBytesPadded.fill("\0");
+  var sourceEnd = 14;
+  if(passwordBytes.length < 14) sourceEnd = passwordBytes.length;
+  passwordBytes.copy(passwordBytesPadded, 0, 0, sourceEnd);
+
+  // split into 2 parts of 7 bytes:
+  var firstPart = passwordBytesPadded.slice(0,7);
+  var secondPart = passwordBytesPadded.slice(7);
+
+  function encrypt(buf){
+    var key = insertZerosEvery7Bits(buf);
+    var des = crypto.createCipheriv('DES-ECB', key, '');
+    return des.update("KGS!@#$%"); // page 57 in [MS-NLMP]);
+  }
+
+  var firstPartEncrypted = encrypt(firstPart);
+  var secondPartEncrypted = encrypt(secondPart);
+
+  return Buffer.concat([firstPartEncrypted, secondPartEncrypted]);
+}
+
+function insertZerosEvery7Bits(buf){
+  var binaryArray = bytes2binaryArray(buf);
+  var newBinaryArray = [];
+  for(var i=0; i<binaryArray.length; i++){
+    newBinaryArray.push(binaryArray[i]);
+
+    if((i+1)%7 == 0){
+      newBinaryArray.push(0);
+    }
+  }
+  return binaryArray2bytes(newBinaryArray);
+}
+
+function bytes2binaryArray(buf){
+  var hex2binary = {
+    0: [0,0,0,0],
+    1: [0,0,0,1],
+    2: [0,0,1,0],
+    3: [0,0,1,1],
+    4: [0,1,0,0],
+    5: [0,1,0,1],
+    6: [0,1,1,0],
+    7: [0,1,1,1],
+    8: [1,0,0,0],
+    9: [1,0,0,1],
+    A: [1,0,1,0],
+    B: [1,0,1,1],
+    C: [1,1,0,0],
+    D: [1,1,0,1],
+    E: [1,1,1,0],
+    F: [1,1,1,1]
+  };
+
+  var hexString = buf.toString('hex').toUpperCase();
+  var array = [];
+  for(var i=0; i<hexString.length; i++){
+    var hexchar = hexString.charAt(i);
+    array = array.concat(hex2binary[hexchar]);
+  }
+  return array;
+}
+
+function binaryArray2bytes(array){
+  var binary2hex = {
+    '0000': 0,
+    '0001': 1,
+    '0010': 2,
+    '0011': 3,
+    '0100': 4,
+    '0101': 5,
+    '0110': 6,
+    '0111': 7,
+    '1000': 8,
+    '1001': 9,
+    '1010': 'A',
+    '1011': 'B',
+    '1100': 'C',
+    '1101': 'D',
+    '1110': 'E',
+    '1111': 'F'
+  }
+
+  var bufArray = [];
+
+  for(var i=0; i<array.length; i +=8 ){
+    if((i+7) > array.length)
+      break;
+
+    var binString1 = '' + array[i] + '' + array[i+1] + '' + array[i+2] + '' + array[i+3];
+    var binString2 = '' + array[i+4] + '' + array[i+5] + '' + array[i+6] + '' + array[i+7];
+    var hexchar1 = binary2hex[binString1];
+    var hexchar2 = binary2hex[binString2];
+
+    var buf = new Buffer(hexchar1 + '' + hexchar2, 'hex');
+    bufArray.push(buf);
+  }
+
+  return Buffer.concat(bufArray);
+}
+
+function create_NT_hashed_password_v1(password){
+  var buf = new Buffer(password, 'utf16le');
+  var md4 = crypto.createHash('md4');
+  md4.update(buf);
+  return new Buffer(md4.digest());
+}
+
+function calc_resp(password_hash, server_challenge){
+  // padding with zeros to make the hash 21 bytes long
+  var passHashPadded = new Buffer(21);
+  passHashPadded.fill("\0");
+  password_hash.copy(passHashPadded, 0, 0, password_hash.length);
+
+  var resArray = [];
+
+  var des = crypto.createCipheriv('DES-ECB', insertZerosEvery7Bits(passHashPadded.slice(0,7)), '');
+  resArray.push( des.update(server_challenge.slice(0,8)) );
+
+  var des = crypto.createCipheriv('DES-ECB', insertZerosEvery7Bits(passHashPadded.slice(7,14)), '');
+  resArray.push( des.update(server_challenge.slice(0,8)) );
+
+  var des = crypto.createCipheriv('DES-ECB', insertZerosEvery7Bits(passHashPadded.slice(14,21)), '');
+  resArray.push( des.update(server_challenge.slice(0,8)) );
+
+  return Buffer.concat(resArray);
+}
+
+function ntlm2sr_calc_resp(responseKeyNT, serverChallenge, clientChallenge){
+  // padding with zeros to make the hash 16 bytes longer
+  var lmChallengeResponse = new Buffer(clientChallenge.length + 16);
+  lmChallengeResponse.fill("\0");
+  clientChallenge.copy(lmChallengeResponse, 0, 0, clientChallenge.length);
+
+  var buf = Buffer.concat([serverChallenge, clientChallenge]);
+  var md5 = crypto.createHash('md5');
+  md5.update(buf);
+  var sess = md5.digest();
+  var ntChallengeResponse = calc_resp(responseKeyNT, sess.slice(0,8));
+
+  return {
+    lmChallengeResponse: lmChallengeResponse,
+    ntChallengeResponse: ntChallengeResponse
+  }
+}
+
+exports.createType1Message = createType1Message;
+exports.parseType2Message = parseType2Message;
+exports.createType3Message = createType3Message;
+
 
 /***/ }),
 
@@ -6855,6 +8073,108 @@ module.exports = parse;
 
 /***/ }),
 
+/***/ 591:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const core = __importStar(__webpack_require__(470));
+const fs = __importStar(__webpack_require__(747));
+const tinify_1 = __importDefault(__webpack_require__(82));
+const bytes_1 = __importDefault(__webpack_require__(63));
+class Image {
+    constructor(filename) {
+        this.filename = filename;
+    }
+    compress() {
+        return __awaiter(this, void 0, void 0, function* () {
+            core.debug(`[${this.filename}] Before: ${bytes_1.default.format(this.getSize())}`);
+            this.source = tinify_1.default.fromFile(this.filename);
+            return this.source.toFile(this.filename).then(() => {
+                core.debug(`[${this.filename}] After: ${bytes_1.default.format(this.getSize())}`);
+            });
+        });
+    }
+    getFilename() {
+        return this.filename;
+    }
+    getSize() {
+        return fs.statSync(this.filename).size;
+    }
+}
+exports.default = Image;
+
+
+/***/ }),
+
+/***/ 597:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const compat_1 = __webpack_require__(464);
+const ResultMeta_1 = __webpack_require__(410);
+const ignore = () => { };
+const intify = (v) => parseInt(v, 10);
+class Result extends ResultMeta_1.default {
+    /** @internal */
+    constructor(meta, data) {
+        super(meta);
+        this._data = data;
+    }
+    /** @internal */
+    meta() {
+        /* Ignore errors on data, because they'll be propagated to meta too. */
+        return this._data.catch(ignore) && this._meta;
+    }
+    /** @internal */
+    data() {
+        /* Ignore errors on meta, because they'll be propagated to data too. */
+        return this._meta.catch(ignore) && this._data;
+    }
+    toFile(path, callback) {
+        const writer = compat_1.writeFile.bind(null, path);
+        return compat_1.nodeify(this.data().then(writer), callback);
+    }
+    toBuffer(callback) {
+        return compat_1.nodeify(this.data(), callback);
+    }
+    size(callback) {
+        return compat_1.nodeify(this.meta().then(meta => intify(meta["content-length"])), callback);
+    }
+    mediaType(callback) {
+        return compat_1.nodeify(this.meta().then(meta => meta["content-type"]), callback);
+    }
+    contentType(callback) {
+        return this.mediaType(callback);
+    }
+}
+exports.default = Result;
+
+
+/***/ }),
+
 /***/ 605:
 /***/ (function(module) {
 
@@ -7046,6 +8366,126 @@ if (process.platform === 'linux') {
 
 /***/ }),
 
+/***/ 660:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const https = __webpack_require__(211);
+const url = __webpack_require__(835);
+const fs = __webpack_require__(747);
+const proxyAgent = __webpack_require__(338);
+const package_json_1 = __webpack_require__(425);
+const tinify_1 = __webpack_require__(990);
+const boundaries = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----\n/g;
+const data = fs.readFileSync(__webpack_require__.ab + "cacert.pem").toString();
+class Client {
+    /** @internal */
+    constructor(key, appIdentifier, proxy) {
+        const klass = this.constructor;
+        this.userAgent = [klass.USER_AGENT, appIdentifier].filter(Boolean).join(" ");
+        this.defaultOptions = {
+            ca: klass.CA_BUNDLE,
+            rejectUnauthorized: true,
+            auth: `api:${key}`,
+        };
+        if (proxy) {
+            if (!url.parse(proxy).hostname) {
+                throw new tinify_1.default.ConnectionError("Invalid proxy");
+            }
+            /* Note: although keepAlive is enabled, the proxy agent reconnects to the
+               proxy server each time. This makes proxied requests slow. There
+               seems to be no proxy tunneling agent that reuses TLS connections. */
+            this.defaultOptions.agent = proxyAgent.create({
+                proxy,
+                keepAlive: true,
+            }, klass.API_ENDPOINT);
+        }
+    }
+    /** @internal */
+    request(method, path, body) {
+        const klass = this.constructor;
+        const options = url.parse(url.resolve(klass.API_ENDPOINT, path));
+        options.method = method;
+        options.headers = {};
+        Object.assign(options, this.defaultOptions);
+        options.headers["User-Agent"] = this.userAgent;
+        if (typeof body === "object" && !Buffer.isBuffer(body)) {
+            if (Object.keys(body).length) {
+                /* Encode as JSON. */
+                body = JSON.stringify(body);
+                options.headers["Content-Type"] = "application/json";
+                options.headers["Content-Length"] = body.length;
+            }
+            else {
+                /* No options, send without body. */
+                body = undefined;
+            }
+        }
+        let retries = klass.RETRY_COUNT + 1;
+        return new Promise((resolve, reject) => {
+            const exec = () => {
+                retries -= 1;
+                const request = https.request(options, (response) => {
+                    const count = response.headers["compression-count"];
+                    if (count) {
+                        tinify_1.default.compressionCount = parseInt(count, 10);
+                    }
+                    const chunks = [];
+                    response.on("data", (chunk) => {
+                        chunks.push(chunk);
+                    });
+                    response.on("end", () => {
+                        const body = Buffer.concat(chunks);
+                        if (response.statusCode && response.statusCode >= 200 && response.statusCode <= 299) {
+                            resolve({ headers: response.headers, body });
+                        }
+                        else {
+                            let details;
+                            try {
+                                details = JSON.parse(body.toString());
+                            }
+                            catch (err) {
+                                details = {
+                                    message: `Error while parsing response: ${err.message}`,
+                                    error: "ParseError",
+                                };
+                            }
+                            if (retries > 0 && response.statusCode && response.statusCode >= 500) {
+                                return setTimeout(exec, klass.RETRY_DELAY);
+                            }
+                            reject(tinify_1.default.Error.create(details.message, details.error, response.statusCode));
+                        }
+                    });
+                });
+                request.on("error", err => {
+                    if (retries > 0) {
+                        return setTimeout(exec, klass.RETRY_DELAY);
+                    }
+                    reject(new tinify_1.default.ConnectionError(`Error while connecting: ${err.message}`));
+                });
+                request.end(body);
+            };
+            exec();
+        });
+    }
+}
+/** @internal */
+Client.API_ENDPOINT = "https://api.tinify.com";
+/** @internal */
+Client.RETRY_COUNT = 1;
+/** @internal */
+Client.RETRY_DELAY = 500;
+/** @internal */
+Client.USER_AGENT = `Tinify/${package_json_1.version} Node/${process.versions.node} (${process.platform})`;
+/** @internal */
+Client.CA_BUNDLE = data.match(boundaries);
+exports.default = Client;
+
+
+/***/ }),
+
 /***/ 666:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
@@ -7058,18 +8498,19 @@ var __importStar = (this && this.__importStar) || function (mod) {
     result["default"] = mod;
     return result;
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(__webpack_require__(470));
 const mime = __importStar(__webpack_require__(444));
+const image_1 = __importDefault(__webpack_require__(591));
 const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png'];
 class Images {
     constructor() {
         this.images = new Set();
     }
     addFile(filename) {
-        if (this.images.has(filename)) {
-            return core.debug(`[${filename}] Skipping duplicate file`);
-        }
         const mimeType = mime.getType(filename);
         if (null === mimeType) {
             return core.debug(`[${filename}] Skipping file with unknown mime type`);
@@ -7078,7 +8519,7 @@ class Images {
             return core.debug(`[${filename}] Skipping file with unsupported mime type ${mimeType}`);
         }
         core.debug(`[${filename}] Adding ${mimeType} image`);
-        this.images.add(filename);
+        this.images.add(new image_1.default(filename));
     }
     all() {
         return this.images.values();
@@ -7424,6 +8865,153 @@ module.exports = function (x) {
 
 	return x;
 };
+
+
+/***/ }),
+
+/***/ 791:
+/***/ (function(module) {
+
+"use strict";
+/** @module promise-nodeify
+ * @copyright Copyright 2016-2018 Kevin Locke <kevin@kevinlocke.name>
+ * @license MIT
+ */
+
+
+
+/** Function which will run with a clear stack as soon as possible.
+ * @private
+ */
+const later
+  = typeof process !== 'undefined'
+    && typeof process.nextTick === 'function' ? process.nextTick
+    : typeof setImmediate === 'function' ? setImmediate
+      : setTimeout;
+
+/** Invokes callback and ensures any exceptions thrown are uncaught.
+ * @private
+ */
+function doCallback(callback, reason, value) {
+  // Note:  Could delay callback call until later, as When.js does, but this
+  // loses the stack (particularly for bluebird long traces) and causes
+  // unnecessary delay in the non-exception (common) case.
+  try {
+    // Match argument length to resolve/reject in case callback cares.
+    // Note:  bluebird has argument length 1 if value === undefined due to
+    // https://github.com/petkaantonov/bluebird/issues/170
+    // If you are reading this and want similar behavior, I'll consider it.
+    if (reason) {
+      callback(reason);
+    } else {
+      callback(null, value);
+    }
+  } catch (err) {
+    later(() => { throw err; });
+  }
+}
+
+/** Calls a node-style callback when a Promise is resolved or rejected.
+ *
+ * This function provides the behavior of
+ * {@link https://github.com/then/nodeify then <code>nodeify</code>},
+ * {@link
+ * https://github.com/cujojs/when/blob/master/docs/api.md#nodebindcallback
+ * when.js <code>node.bindCallback</code>},
+ * or {@link http://bluebirdjs.com/docs/api/ascallback.html bluebird
+ * <code>Promise.prototype.nodeify</code> (now
+ * <code>Promise.prototype.asCallback</code>)} (without options).
+ *
+ * @ template ValueType
+ * @param {!Promise<ValueType>} promise Promise to monitor.
+ * @param {?function(*, ValueType=)=} callback Node-style callback to be
+ * called when <code>promise</code> is resolved or rejected.  If
+ * <code>promise</code> is rejected with a falsey value the first argument
+ * will be an instance of <code>Error</code> with a <code>.cause</code>
+ * property with the rejected value.
+ * @return {Promise<ValueType>|undefined} <code>undefined</code> if
+ * <code>callback</code> is a function, otherwise a <code>Promise</code>
+ * which behaves like <code>promise</code> (currently is <code>promise</code>,
+ * but is not guaranteed to remain so).
+ * @alias module:promise-nodeify
+ */
+function promiseNodeify(promise, callback) {
+  if (typeof callback !== 'function') {
+    return promise;
+  }
+
+  function onRejected(reason) {
+    // callback is unlikely to recognize or expect a falsey error.
+    // (we also rely on truthyness for arguments.length in doCallback)
+    // Convert it to something truthy
+    let truthyReason = reason;
+    if (!truthyReason) {
+      // Note:  unthenify converts falsey rejections to TypeError:
+      // https://github.com/blakeembrey/unthenify/blob/v1.0.0/src/index.ts#L32
+      // We use bluebird convention for Error, message, and .cause property
+      truthyReason = new Error(String(reason));
+      truthyReason.cause = reason;
+    }
+
+    doCallback(callback, truthyReason);
+  }
+
+  function onResolved(value) {
+    doCallback(callback, null, value);
+  }
+
+  promise.then(onResolved, onRejected);
+  return undefined;
+}
+
+/** A version of {@link promiseNodeify} which delegates to the
+ * <code>.nodeify</code> method on <code>promise</code>, if present.
+ *
+ * This may be more performant than {@see promiseNodeify} and have additional
+ * implementation-specific features, but the behavior may differ from
+ * <code>promiseNodeify</code> and between Promise implementations.
+ *
+ * Note that this function only passes the callback argument to
+ * <code>.nodeify</code>, since additional arguments are interpreted
+ * differently by different libraries (e.g. bluebird treats the next argument
+ * as an options object while then treats it as <code>this</code> for the
+ * callback).
+ *
+ * @ template ValueType
+ * @param {!Promise<ValueType>} promise Promise to monitor.
+ * @param {?function(*, ValueType=)=} callback Node-style callback.
+ * @return {Promise<ValueType>|undefined} Value returned by
+ * <code>.nodeify</code>.  Known implementations return the
+ * <code>promise</code> argument when callback is falsey and either
+ * <code>promise</code> or <code>undefined</code> otherwise.
+ */
+promiseNodeify.delegated = function nodeifyDelegated(promise, callback) {
+  if (typeof promise.nodeify === 'function') {
+    return promise.nodeify(callback);
+  }
+
+  return promiseNodeify(promise, callback);
+};
+
+/** Polyfill for <code>Promise.prototype.nodeify</code> which behaves like
+ * {@link promiseNodeify}.
+ *
+ * @ template ValueType
+ * @this {!Promise<ValueType>}
+ * @param {?function(*, ValueType=)=} callback Node-style callback.
+ * @return {Promise<ValueType>|undefined} <code>undefined</code> if
+ * <code>callback</code> is a function, otherwise a <code>Promise</code>
+ * which behaves like <code>promise</code> (currently is <code>promise</code>,
+ * but is not guaranteed to remain so).
+ */
+promiseNodeify.nodeifyThis = function nodeifyThis(callback) {
+  return promiseNodeify(this, callback);
+};
+
+// Note: This file is used directly for Node and wrapped in UMD for browser
+if (true) {
+  module.exports = promiseNodeify;
+}
 
 
 /***/ }),
@@ -9923,6 +11511,71 @@ function onceStrict (fn) {
 /***/ (function(module) {
 
 module.exports = {"application/prs.cww":["cww"],"application/vnd.1000minds.decision-model+xml":["1km"],"application/vnd.3gpp.pic-bw-large":["plb"],"application/vnd.3gpp.pic-bw-small":["psb"],"application/vnd.3gpp.pic-bw-var":["pvb"],"application/vnd.3gpp2.tcap":["tcap"],"application/vnd.3m.post-it-notes":["pwn"],"application/vnd.accpac.simply.aso":["aso"],"application/vnd.accpac.simply.imp":["imp"],"application/vnd.acucobol":["acu"],"application/vnd.acucorp":["atc","acutc"],"application/vnd.adobe.air-application-installer-package+zip":["air"],"application/vnd.adobe.formscentral.fcdt":["fcdt"],"application/vnd.adobe.fxp":["fxp","fxpl"],"application/vnd.adobe.xdp+xml":["xdp"],"application/vnd.adobe.xfdf":["xfdf"],"application/vnd.ahead.space":["ahead"],"application/vnd.airzip.filesecure.azf":["azf"],"application/vnd.airzip.filesecure.azs":["azs"],"application/vnd.amazon.ebook":["azw"],"application/vnd.americandynamics.acc":["acc"],"application/vnd.amiga.ami":["ami"],"application/vnd.android.package-archive":["apk"],"application/vnd.anser-web-certificate-issue-initiation":["cii"],"application/vnd.anser-web-funds-transfer-initiation":["fti"],"application/vnd.antix.game-component":["atx"],"application/vnd.apple.installer+xml":["mpkg"],"application/vnd.apple.keynote":["keynote"],"application/vnd.apple.mpegurl":["m3u8"],"application/vnd.apple.numbers":["numbers"],"application/vnd.apple.pages":["pages"],"application/vnd.apple.pkpass":["pkpass"],"application/vnd.aristanetworks.swi":["swi"],"application/vnd.astraea-software.iota":["iota"],"application/vnd.audiograph":["aep"],"application/vnd.balsamiq.bmml+xml":["bmml"],"application/vnd.blueice.multipass":["mpm"],"application/vnd.bmi":["bmi"],"application/vnd.businessobjects":["rep"],"application/vnd.chemdraw+xml":["cdxml"],"application/vnd.chipnuts.karaoke-mmd":["mmd"],"application/vnd.cinderella":["cdy"],"application/vnd.citationstyles.style+xml":["csl"],"application/vnd.claymore":["cla"],"application/vnd.cloanto.rp9":["rp9"],"application/vnd.clonk.c4group":["c4g","c4d","c4f","c4p","c4u"],"application/vnd.cluetrust.cartomobile-config":["c11amc"],"application/vnd.cluetrust.cartomobile-config-pkg":["c11amz"],"application/vnd.commonspace":["csp"],"application/vnd.contact.cmsg":["cdbcmsg"],"application/vnd.cosmocaller":["cmc"],"application/vnd.crick.clicker":["clkx"],"application/vnd.crick.clicker.keyboard":["clkk"],"application/vnd.crick.clicker.palette":["clkp"],"application/vnd.crick.clicker.template":["clkt"],"application/vnd.crick.clicker.wordbank":["clkw"],"application/vnd.criticaltools.wbs+xml":["wbs"],"application/vnd.ctc-posml":["pml"],"application/vnd.cups-ppd":["ppd"],"application/vnd.curl.car":["car"],"application/vnd.curl.pcurl":["pcurl"],"application/vnd.dart":["dart"],"application/vnd.data-vision.rdz":["rdz"],"application/vnd.dece.data":["uvf","uvvf","uvd","uvvd"],"application/vnd.dece.ttml+xml":["uvt","uvvt"],"application/vnd.dece.unspecified":["uvx","uvvx"],"application/vnd.dece.zip":["uvz","uvvz"],"application/vnd.denovo.fcselayout-link":["fe_launch"],"application/vnd.dna":["dna"],"application/vnd.dolby.mlp":["mlp"],"application/vnd.dpgraph":["dpg"],"application/vnd.dreamfactory":["dfac"],"application/vnd.ds-keypoint":["kpxx"],"application/vnd.dvb.ait":["ait"],"application/vnd.dvb.service":["svc"],"application/vnd.dynageo":["geo"],"application/vnd.ecowin.chart":["mag"],"application/vnd.enliven":["nml"],"application/vnd.epson.esf":["esf"],"application/vnd.epson.msf":["msf"],"application/vnd.epson.quickanime":["qam"],"application/vnd.epson.salt":["slt"],"application/vnd.epson.ssf":["ssf"],"application/vnd.eszigno3+xml":["es3","et3"],"application/vnd.ezpix-album":["ez2"],"application/vnd.ezpix-package":["ez3"],"application/vnd.fdf":["fdf"],"application/vnd.fdsn.mseed":["mseed"],"application/vnd.fdsn.seed":["seed","dataless"],"application/vnd.flographit":["gph"],"application/vnd.fluxtime.clip":["ftc"],"application/vnd.framemaker":["fm","frame","maker","book"],"application/vnd.frogans.fnc":["fnc"],"application/vnd.frogans.ltf":["ltf"],"application/vnd.fsc.weblaunch":["fsc"],"application/vnd.fujitsu.oasys":["oas"],"application/vnd.fujitsu.oasys2":["oa2"],"application/vnd.fujitsu.oasys3":["oa3"],"application/vnd.fujitsu.oasysgp":["fg5"],"application/vnd.fujitsu.oasysprs":["bh2"],"application/vnd.fujixerox.ddd":["ddd"],"application/vnd.fujixerox.docuworks":["xdw"],"application/vnd.fujixerox.docuworks.binder":["xbd"],"application/vnd.fuzzysheet":["fzs"],"application/vnd.genomatix.tuxedo":["txd"],"application/vnd.geogebra.file":["ggb"],"application/vnd.geogebra.tool":["ggt"],"application/vnd.geometry-explorer":["gex","gre"],"application/vnd.geonext":["gxt"],"application/vnd.geoplan":["g2w"],"application/vnd.geospace":["g3w"],"application/vnd.gmx":["gmx"],"application/vnd.google-apps.document":["gdoc"],"application/vnd.google-apps.presentation":["gslides"],"application/vnd.google-apps.spreadsheet":["gsheet"],"application/vnd.google-earth.kml+xml":["kml"],"application/vnd.google-earth.kmz":["kmz"],"application/vnd.grafeq":["gqf","gqs"],"application/vnd.groove-account":["gac"],"application/vnd.groove-help":["ghf"],"application/vnd.groove-identity-message":["gim"],"application/vnd.groove-injector":["grv"],"application/vnd.groove-tool-message":["gtm"],"application/vnd.groove-tool-template":["tpl"],"application/vnd.groove-vcard":["vcg"],"application/vnd.hal+xml":["hal"],"application/vnd.handheld-entertainment+xml":["zmm"],"application/vnd.hbci":["hbci"],"application/vnd.hhe.lesson-player":["les"],"application/vnd.hp-hpgl":["hpgl"],"application/vnd.hp-hpid":["hpid"],"application/vnd.hp-hps":["hps"],"application/vnd.hp-jlyt":["jlt"],"application/vnd.hp-pcl":["pcl"],"application/vnd.hp-pclxl":["pclxl"],"application/vnd.hydrostatix.sof-data":["sfd-hdstx"],"application/vnd.ibm.minipay":["mpy"],"application/vnd.ibm.modcap":["afp","listafp","list3820"],"application/vnd.ibm.rights-management":["irm"],"application/vnd.ibm.secure-container":["sc"],"application/vnd.iccprofile":["icc","icm"],"application/vnd.igloader":["igl"],"application/vnd.immervision-ivp":["ivp"],"application/vnd.immervision-ivu":["ivu"],"application/vnd.insors.igm":["igm"],"application/vnd.intercon.formnet":["xpw","xpx"],"application/vnd.intergeo":["i2g"],"application/vnd.intu.qbo":["qbo"],"application/vnd.intu.qfx":["qfx"],"application/vnd.ipunplugged.rcprofile":["rcprofile"],"application/vnd.irepository.package+xml":["irp"],"application/vnd.is-xpr":["xpr"],"application/vnd.isac.fcs":["fcs"],"application/vnd.jam":["jam"],"application/vnd.jcp.javame.midlet-rms":["rms"],"application/vnd.jisp":["jisp"],"application/vnd.joost.joda-archive":["joda"],"application/vnd.kahootz":["ktz","ktr"],"application/vnd.kde.karbon":["karbon"],"application/vnd.kde.kchart":["chrt"],"application/vnd.kde.kformula":["kfo"],"application/vnd.kde.kivio":["flw"],"application/vnd.kde.kontour":["kon"],"application/vnd.kde.kpresenter":["kpr","kpt"],"application/vnd.kde.kspread":["ksp"],"application/vnd.kde.kword":["kwd","kwt"],"application/vnd.kenameaapp":["htke"],"application/vnd.kidspiration":["kia"],"application/vnd.kinar":["kne","knp"],"application/vnd.koan":["skp","skd","skt","skm"],"application/vnd.kodak-descriptor":["sse"],"application/vnd.las.las+xml":["lasxml"],"application/vnd.llamagraphics.life-balance.desktop":["lbd"],"application/vnd.llamagraphics.life-balance.exchange+xml":["lbe"],"application/vnd.lotus-1-2-3":["123"],"application/vnd.lotus-approach":["apr"],"application/vnd.lotus-freelance":["pre"],"application/vnd.lotus-notes":["nsf"],"application/vnd.lotus-organizer":["org"],"application/vnd.lotus-screencam":["scm"],"application/vnd.lotus-wordpro":["lwp"],"application/vnd.macports.portpkg":["portpkg"],"application/vnd.mcd":["mcd"],"application/vnd.medcalcdata":["mc1"],"application/vnd.mediastation.cdkey":["cdkey"],"application/vnd.mfer":["mwf"],"application/vnd.mfmp":["mfm"],"application/vnd.micrografx.flo":["flo"],"application/vnd.micrografx.igx":["igx"],"application/vnd.mif":["mif"],"application/vnd.mobius.daf":["daf"],"application/vnd.mobius.dis":["dis"],"application/vnd.mobius.mbk":["mbk"],"application/vnd.mobius.mqy":["mqy"],"application/vnd.mobius.msl":["msl"],"application/vnd.mobius.plc":["plc"],"application/vnd.mobius.txf":["txf"],"application/vnd.mophun.application":["mpn"],"application/vnd.mophun.certificate":["mpc"],"application/vnd.mozilla.xul+xml":["xul"],"application/vnd.ms-artgalry":["cil"],"application/vnd.ms-cab-compressed":["cab"],"application/vnd.ms-excel":["xls","xlm","xla","xlc","xlt","xlw"],"application/vnd.ms-excel.addin.macroenabled.12":["xlam"],"application/vnd.ms-excel.sheet.binary.macroenabled.12":["xlsb"],"application/vnd.ms-excel.sheet.macroenabled.12":["xlsm"],"application/vnd.ms-excel.template.macroenabled.12":["xltm"],"application/vnd.ms-fontobject":["eot"],"application/vnd.ms-htmlhelp":["chm"],"application/vnd.ms-ims":["ims"],"application/vnd.ms-lrm":["lrm"],"application/vnd.ms-officetheme":["thmx"],"application/vnd.ms-outlook":["msg"],"application/vnd.ms-pki.seccat":["cat"],"application/vnd.ms-pki.stl":["*stl"],"application/vnd.ms-powerpoint":["ppt","pps","pot"],"application/vnd.ms-powerpoint.addin.macroenabled.12":["ppam"],"application/vnd.ms-powerpoint.presentation.macroenabled.12":["pptm"],"application/vnd.ms-powerpoint.slide.macroenabled.12":["sldm"],"application/vnd.ms-powerpoint.slideshow.macroenabled.12":["ppsm"],"application/vnd.ms-powerpoint.template.macroenabled.12":["potm"],"application/vnd.ms-project":["mpp","mpt"],"application/vnd.ms-word.document.macroenabled.12":["docm"],"application/vnd.ms-word.template.macroenabled.12":["dotm"],"application/vnd.ms-works":["wps","wks","wcm","wdb"],"application/vnd.ms-wpl":["wpl"],"application/vnd.ms-xpsdocument":["xps"],"application/vnd.mseq":["mseq"],"application/vnd.musician":["mus"],"application/vnd.muvee.style":["msty"],"application/vnd.mynfc":["taglet"],"application/vnd.neurolanguage.nlu":["nlu"],"application/vnd.nitf":["ntf","nitf"],"application/vnd.noblenet-directory":["nnd"],"application/vnd.noblenet-sealer":["nns"],"application/vnd.noblenet-web":["nnw"],"application/vnd.nokia.n-gage.ac+xml":["*ac"],"application/vnd.nokia.n-gage.data":["ngdat"],"application/vnd.nokia.n-gage.symbian.install":["n-gage"],"application/vnd.nokia.radio-preset":["rpst"],"application/vnd.nokia.radio-presets":["rpss"],"application/vnd.novadigm.edm":["edm"],"application/vnd.novadigm.edx":["edx"],"application/vnd.novadigm.ext":["ext"],"application/vnd.oasis.opendocument.chart":["odc"],"application/vnd.oasis.opendocument.chart-template":["otc"],"application/vnd.oasis.opendocument.database":["odb"],"application/vnd.oasis.opendocument.formula":["odf"],"application/vnd.oasis.opendocument.formula-template":["odft"],"application/vnd.oasis.opendocument.graphics":["odg"],"application/vnd.oasis.opendocument.graphics-template":["otg"],"application/vnd.oasis.opendocument.image":["odi"],"application/vnd.oasis.opendocument.image-template":["oti"],"application/vnd.oasis.opendocument.presentation":["odp"],"application/vnd.oasis.opendocument.presentation-template":["otp"],"application/vnd.oasis.opendocument.spreadsheet":["ods"],"application/vnd.oasis.opendocument.spreadsheet-template":["ots"],"application/vnd.oasis.opendocument.text":["odt"],"application/vnd.oasis.opendocument.text-master":["odm"],"application/vnd.oasis.opendocument.text-template":["ott"],"application/vnd.oasis.opendocument.text-web":["oth"],"application/vnd.olpc-sugar":["xo"],"application/vnd.oma.dd2+xml":["dd2"],"application/vnd.openblox.game+xml":["obgx"],"application/vnd.openofficeorg.extension":["oxt"],"application/vnd.openstreetmap.data+xml":["osm"],"application/vnd.openxmlformats-officedocument.presentationml.presentation":["pptx"],"application/vnd.openxmlformats-officedocument.presentationml.slide":["sldx"],"application/vnd.openxmlformats-officedocument.presentationml.slideshow":["ppsx"],"application/vnd.openxmlformats-officedocument.presentationml.template":["potx"],"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":["xlsx"],"application/vnd.openxmlformats-officedocument.spreadsheetml.template":["xltx"],"application/vnd.openxmlformats-officedocument.wordprocessingml.document":["docx"],"application/vnd.openxmlformats-officedocument.wordprocessingml.template":["dotx"],"application/vnd.osgeo.mapguide.package":["mgp"],"application/vnd.osgi.dp":["dp"],"application/vnd.osgi.subsystem":["esa"],"application/vnd.palm":["pdb","pqa","oprc"],"application/vnd.pawaafile":["paw"],"application/vnd.pg.format":["str"],"application/vnd.pg.osasli":["ei6"],"application/vnd.picsel":["efif"],"application/vnd.pmi.widget":["wg"],"application/vnd.pocketlearn":["plf"],"application/vnd.powerbuilder6":["pbd"],"application/vnd.previewsystems.box":["box"],"application/vnd.proteus.magazine":["mgz"],"application/vnd.publishare-delta-tree":["qps"],"application/vnd.pvi.ptid1":["ptid"],"application/vnd.quark.quarkxpress":["qxd","qxt","qwd","qwt","qxl","qxb"],"application/vnd.realvnc.bed":["bed"],"application/vnd.recordare.musicxml":["mxl"],"application/vnd.recordare.musicxml+xml":["musicxml"],"application/vnd.rig.cryptonote":["cryptonote"],"application/vnd.rim.cod":["cod"],"application/vnd.rn-realmedia":["rm"],"application/vnd.rn-realmedia-vbr":["rmvb"],"application/vnd.route66.link66+xml":["link66"],"application/vnd.sailingtracker.track":["st"],"application/vnd.seemail":["see"],"application/vnd.sema":["sema"],"application/vnd.semd":["semd"],"application/vnd.semf":["semf"],"application/vnd.shana.informed.formdata":["ifm"],"application/vnd.shana.informed.formtemplate":["itp"],"application/vnd.shana.informed.interchange":["iif"],"application/vnd.shana.informed.package":["ipk"],"application/vnd.simtech-mindmapper":["twd","twds"],"application/vnd.smaf":["mmf"],"application/vnd.smart.teacher":["teacher"],"application/vnd.software602.filler.form+xml":["fo"],"application/vnd.solent.sdkm+xml":["sdkm","sdkd"],"application/vnd.spotfire.dxp":["dxp"],"application/vnd.spotfire.sfs":["sfs"],"application/vnd.stardivision.calc":["sdc"],"application/vnd.stardivision.draw":["sda"],"application/vnd.stardivision.impress":["sdd"],"application/vnd.stardivision.math":["smf"],"application/vnd.stardivision.writer":["sdw","vor"],"application/vnd.stardivision.writer-global":["sgl"],"application/vnd.stepmania.package":["smzip"],"application/vnd.stepmania.stepchart":["sm"],"application/vnd.sun.wadl+xml":["wadl"],"application/vnd.sun.xml.calc":["sxc"],"application/vnd.sun.xml.calc.template":["stc"],"application/vnd.sun.xml.draw":["sxd"],"application/vnd.sun.xml.draw.template":["std"],"application/vnd.sun.xml.impress":["sxi"],"application/vnd.sun.xml.impress.template":["sti"],"application/vnd.sun.xml.math":["sxm"],"application/vnd.sun.xml.writer":["sxw"],"application/vnd.sun.xml.writer.global":["sxg"],"application/vnd.sun.xml.writer.template":["stw"],"application/vnd.sus-calendar":["sus","susp"],"application/vnd.svd":["svd"],"application/vnd.symbian.install":["sis","sisx"],"application/vnd.syncml+xml":["xsm"],"application/vnd.syncml.dm+wbxml":["bdm"],"application/vnd.syncml.dm+xml":["xdm"],"application/vnd.syncml.dmddf+xml":["ddf"],"application/vnd.tao.intent-module-archive":["tao"],"application/vnd.tcpdump.pcap":["pcap","cap","dmp"],"application/vnd.tmobile-livetv":["tmo"],"application/vnd.trid.tpt":["tpt"],"application/vnd.triscape.mxs":["mxs"],"application/vnd.trueapp":["tra"],"application/vnd.ufdl":["ufd","ufdl"],"application/vnd.uiq.theme":["utz"],"application/vnd.umajin":["umj"],"application/vnd.unity":["unityweb"],"application/vnd.uoml+xml":["uoml"],"application/vnd.vcx":["vcx"],"application/vnd.visio":["vsd","vst","vss","vsw"],"application/vnd.visionary":["vis"],"application/vnd.vsf":["vsf"],"application/vnd.wap.wbxml":["wbxml"],"application/vnd.wap.wmlc":["wmlc"],"application/vnd.wap.wmlscriptc":["wmlsc"],"application/vnd.webturbo":["wtb"],"application/vnd.wolfram.player":["nbp"],"application/vnd.wordperfect":["wpd"],"application/vnd.wqd":["wqd"],"application/vnd.wt.stf":["stf"],"application/vnd.xara":["xar"],"application/vnd.xfdl":["xfdl"],"application/vnd.yamaha.hv-dic":["hvd"],"application/vnd.yamaha.hv-script":["hvs"],"application/vnd.yamaha.hv-voice":["hvp"],"application/vnd.yamaha.openscoreformat":["osf"],"application/vnd.yamaha.openscoreformat.osfpvg+xml":["osfpvg"],"application/vnd.yamaha.smaf-audio":["saf"],"application/vnd.yamaha.smaf-phrase":["spf"],"application/vnd.yellowriver-custom-menu":["cmp"],"application/vnd.zul":["zir","zirz"],"application/vnd.zzazz.deck+xml":["zaz"],"application/x-7z-compressed":["7z"],"application/x-abiword":["abw"],"application/x-ace-compressed":["ace"],"application/x-apple-diskimage":["*dmg"],"application/x-arj":["arj"],"application/x-authorware-bin":["aab","x32","u32","vox"],"application/x-authorware-map":["aam"],"application/x-authorware-seg":["aas"],"application/x-bcpio":["bcpio"],"application/x-bdoc":["*bdoc"],"application/x-bittorrent":["torrent"],"application/x-blorb":["blb","blorb"],"application/x-bzip":["bz"],"application/x-bzip2":["bz2","boz"],"application/x-cbr":["cbr","cba","cbt","cbz","cb7"],"application/x-cdlink":["vcd"],"application/x-cfs-compressed":["cfs"],"application/x-chat":["chat"],"application/x-chess-pgn":["pgn"],"application/x-chrome-extension":["crx"],"application/x-cocoa":["cco"],"application/x-conference":["nsc"],"application/x-cpio":["cpio"],"application/x-csh":["csh"],"application/x-debian-package":["*deb","udeb"],"application/x-dgc-compressed":["dgc"],"application/x-director":["dir","dcr","dxr","cst","cct","cxt","w3d","fgd","swa"],"application/x-doom":["wad"],"application/x-dtbncx+xml":["ncx"],"application/x-dtbook+xml":["dtb"],"application/x-dtbresource+xml":["res"],"application/x-dvi":["dvi"],"application/x-envoy":["evy"],"application/x-eva":["eva"],"application/x-font-bdf":["bdf"],"application/x-font-ghostscript":["gsf"],"application/x-font-linux-psf":["psf"],"application/x-font-pcf":["pcf"],"application/x-font-snf":["snf"],"application/x-font-type1":["pfa","pfb","pfm","afm"],"application/x-freearc":["arc"],"application/x-futuresplash":["spl"],"application/x-gca-compressed":["gca"],"application/x-glulx":["ulx"],"application/x-gnumeric":["gnumeric"],"application/x-gramps-xml":["gramps"],"application/x-gtar":["gtar"],"application/x-hdf":["hdf"],"application/x-httpd-php":["php"],"application/x-install-instructions":["install"],"application/x-iso9660-image":["*iso"],"application/x-java-archive-diff":["jardiff"],"application/x-java-jnlp-file":["jnlp"],"application/x-keepass2":["kdbx"],"application/x-latex":["latex"],"application/x-lua-bytecode":["luac"],"application/x-lzh-compressed":["lzh","lha"],"application/x-makeself":["run"],"application/x-mie":["mie"],"application/x-mobipocket-ebook":["prc","mobi"],"application/x-ms-application":["application"],"application/x-ms-shortcut":["lnk"],"application/x-ms-wmd":["wmd"],"application/x-ms-wmz":["wmz"],"application/x-ms-xbap":["xbap"],"application/x-msaccess":["mdb"],"application/x-msbinder":["obd"],"application/x-mscardfile":["crd"],"application/x-msclip":["clp"],"application/x-msdos-program":["*exe"],"application/x-msdownload":["*exe","*dll","com","bat","*msi"],"application/x-msmediaview":["mvb","m13","m14"],"application/x-msmetafile":["*wmf","*wmz","*emf","emz"],"application/x-msmoney":["mny"],"application/x-mspublisher":["pub"],"application/x-msschedule":["scd"],"application/x-msterminal":["trm"],"application/x-mswrite":["wri"],"application/x-netcdf":["nc","cdf"],"application/x-ns-proxy-autoconfig":["pac"],"application/x-nzb":["nzb"],"application/x-perl":["pl","pm"],"application/x-pilot":["*prc","*pdb"],"application/x-pkcs12":["p12","pfx"],"application/x-pkcs7-certificates":["p7b","spc"],"application/x-pkcs7-certreqresp":["p7r"],"application/x-rar-compressed":["rar"],"application/x-redhat-package-manager":["rpm"],"application/x-research-info-systems":["ris"],"application/x-sea":["sea"],"application/x-sh":["sh"],"application/x-shar":["shar"],"application/x-shockwave-flash":["swf"],"application/x-silverlight-app":["xap"],"application/x-sql":["sql"],"application/x-stuffit":["sit"],"application/x-stuffitx":["sitx"],"application/x-subrip":["srt"],"application/x-sv4cpio":["sv4cpio"],"application/x-sv4crc":["sv4crc"],"application/x-t3vm-image":["t3"],"application/x-tads":["gam"],"application/x-tar":["tar"],"application/x-tcl":["tcl","tk"],"application/x-tex":["tex"],"application/x-tex-tfm":["tfm"],"application/x-texinfo":["texinfo","texi"],"application/x-tgif":["*obj"],"application/x-ustar":["ustar"],"application/x-virtualbox-hdd":["hdd"],"application/x-virtualbox-ova":["ova"],"application/x-virtualbox-ovf":["ovf"],"application/x-virtualbox-vbox":["vbox"],"application/x-virtualbox-vbox-extpack":["vbox-extpack"],"application/x-virtualbox-vdi":["vdi"],"application/x-virtualbox-vhd":["vhd"],"application/x-virtualbox-vmdk":["vmdk"],"application/x-wais-source":["src"],"application/x-web-app-manifest+json":["webapp"],"application/x-x509-ca-cert":["der","crt","pem"],"application/x-xfig":["fig"],"application/x-xliff+xml":["*xlf"],"application/x-xpinstall":["xpi"],"application/x-xz":["xz"],"application/x-zmachine":["z1","z2","z3","z4","z5","z6","z7","z8"],"audio/vnd.dece.audio":["uva","uvva"],"audio/vnd.digital-winds":["eol"],"audio/vnd.dra":["dra"],"audio/vnd.dts":["dts"],"audio/vnd.dts.hd":["dtshd"],"audio/vnd.lucent.voice":["lvp"],"audio/vnd.ms-playready.media.pya":["pya"],"audio/vnd.nuera.ecelp4800":["ecelp4800"],"audio/vnd.nuera.ecelp7470":["ecelp7470"],"audio/vnd.nuera.ecelp9600":["ecelp9600"],"audio/vnd.rip":["rip"],"audio/x-aac":["aac"],"audio/x-aiff":["aif","aiff","aifc"],"audio/x-caf":["caf"],"audio/x-flac":["flac"],"audio/x-m4a":["*m4a"],"audio/x-matroska":["mka"],"audio/x-mpegurl":["m3u"],"audio/x-ms-wax":["wax"],"audio/x-ms-wma":["wma"],"audio/x-pn-realaudio":["ram","ra"],"audio/x-pn-realaudio-plugin":["rmp"],"audio/x-realaudio":["*ra"],"audio/x-wav":["*wav"],"chemical/x-cdx":["cdx"],"chemical/x-cif":["cif"],"chemical/x-cmdf":["cmdf"],"chemical/x-cml":["cml"],"chemical/x-csml":["csml"],"chemical/x-xyz":["xyz"],"image/prs.btif":["btif"],"image/prs.pti":["pti"],"image/vnd.adobe.photoshop":["psd"],"image/vnd.airzip.accelerator.azv":["azv"],"image/vnd.dece.graphic":["uvi","uvvi","uvg","uvvg"],"image/vnd.djvu":["djvu","djv"],"image/vnd.dvb.subtitle":["*sub"],"image/vnd.dwg":["dwg"],"image/vnd.dxf":["dxf"],"image/vnd.fastbidsheet":["fbs"],"image/vnd.fpx":["fpx"],"image/vnd.fst":["fst"],"image/vnd.fujixerox.edmics-mmr":["mmr"],"image/vnd.fujixerox.edmics-rlc":["rlc"],"image/vnd.microsoft.icon":["ico"],"image/vnd.ms-dds":["dds"],"image/vnd.ms-modi":["mdi"],"image/vnd.ms-photo":["wdp"],"image/vnd.net-fpx":["npx"],"image/vnd.tencent.tap":["tap"],"image/vnd.valve.source.texture":["vtf"],"image/vnd.wap.wbmp":["wbmp"],"image/vnd.xiff":["xif"],"image/vnd.zbrush.pcx":["pcx"],"image/x-3ds":["3ds"],"image/x-cmu-raster":["ras"],"image/x-cmx":["cmx"],"image/x-freehand":["fh","fhc","fh4","fh5","fh7"],"image/x-icon":["*ico"],"image/x-jng":["jng"],"image/x-mrsid-image":["sid"],"image/x-ms-bmp":["*bmp"],"image/x-pcx":["*pcx"],"image/x-pict":["pic","pct"],"image/x-portable-anymap":["pnm"],"image/x-portable-bitmap":["pbm"],"image/x-portable-graymap":["pgm"],"image/x-portable-pixmap":["ppm"],"image/x-rgb":["rgb"],"image/x-tga":["tga"],"image/x-xbitmap":["xbm"],"image/x-xpixmap":["xpm"],"image/x-xwindowdump":["xwd"],"message/vnd.wfa.wsc":["wsc"],"model/vnd.collada+xml":["dae"],"model/vnd.dwf":["dwf"],"model/vnd.gdl":["gdl"],"model/vnd.gtw":["gtw"],"model/vnd.mts":["mts"],"model/vnd.opengex":["ogex"],"model/vnd.parasolid.transmit.binary":["x_b"],"model/vnd.parasolid.transmit.text":["x_t"],"model/vnd.usdz+zip":["usdz"],"model/vnd.valve.source.compiled-map":["bsp"],"model/vnd.vtu":["vtu"],"text/prs.lines.tag":["dsc"],"text/vnd.curl":["curl"],"text/vnd.curl.dcurl":["dcurl"],"text/vnd.curl.mcurl":["mcurl"],"text/vnd.curl.scurl":["scurl"],"text/vnd.dvb.subtitle":["sub"],"text/vnd.fly":["fly"],"text/vnd.fmi.flexstor":["flx"],"text/vnd.graphviz":["gv"],"text/vnd.in3d.3dml":["3dml"],"text/vnd.in3d.spot":["spot"],"text/vnd.sun.j2me.app-descriptor":["jad"],"text/vnd.wap.wml":["wml"],"text/vnd.wap.wmlscript":["wmls"],"text/x-asm":["s","asm"],"text/x-c":["c","cc","cxx","cpp","h","hh","dic"],"text/x-component":["htc"],"text/x-fortran":["f","for","f77","f90"],"text/x-handlebars-template":["hbs"],"text/x-java-source":["java"],"text/x-lua":["lua"],"text/x-markdown":["mkd"],"text/x-nfo":["nfo"],"text/x-opml":["opml"],"text/x-org":["*org"],"text/x-pascal":["p","pas"],"text/x-processing":["pde"],"text/x-sass":["sass"],"text/x-scss":["scss"],"text/x-setext":["etx"],"text/x-sfv":["sfv"],"text/x-suse-ymp":["ymp"],"text/x-uuencode":["uu"],"text/x-vcalendar":["vcs"],"text/x-vcard":["vcf"],"video/vnd.dece.hd":["uvh","uvvh"],"video/vnd.dece.mobile":["uvm","uvvm"],"video/vnd.dece.pd":["uvp","uvvp"],"video/vnd.dece.sd":["uvs","uvvs"],"video/vnd.dece.video":["uvv","uvvv"],"video/vnd.dvb.file":["dvb"],"video/vnd.fvt":["fvt"],"video/vnd.mpegurl":["mxu","m4u"],"video/vnd.ms-playready.media.pyv":["pyv"],"video/vnd.uvvu.mp4":["uvu","uvvu"],"video/vnd.vivo":["viv"],"video/x-f4v":["f4v"],"video/x-fli":["fli"],"video/x-flv":["flv"],"video/x-m4v":["m4v"],"video/x-matroska":["mkv","mk3d","mks"],"video/x-mng":["mng"],"video/x-ms-asf":["asf","asx"],"video/x-ms-vob":["vob"],"video/x-ms-wm":["wm"],"video/x-ms-wmv":["wmv"],"video/x-ms-wmx":["wmx"],"video/x-ms-wvx":["wvx"],"video/x-msvideo":["avi"],"video/x-sgi-movie":["movie"],"video/x-smv":["smv"],"x-conference/x-cooltalk":["ice"]};
+
+/***/ }),
+
+/***/ 990:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const compat_1 = __webpack_require__(464);
+const Source_1 = __webpack_require__(134);
+const Error_1 = __webpack_require__(122);
+class Tinify {
+    constructor() {
+        this.default = this;
+    }
+    set key(key) {
+        this._key = key;
+        this._client = undefined;
+    }
+    set appIdentifier(appIdentifier) {
+        this._appIdentifier = appIdentifier;
+        this._client = undefined;
+    }
+    set proxy(proxy) {
+        this._proxy = proxy;
+        this._client = undefined;
+    }
+    get client() {
+        if (!this._key) {
+            throw new this.AccountError("Provide an API key with tinify.key = ...");
+        }
+        if (!this._client) {
+            this._client = new this.Client(this._key, this._appIdentifier, this._proxy);
+        }
+        return this._client;
+    }
+    fromFile(path) {
+        return Source_1.default.fromFile(path);
+    }
+    fromBuffer(data) {
+        return Source_1.default.fromBuffer(data);
+    }
+    fromUrl(url) {
+        return Source_1.default.fromUrl(url);
+    }
+    validate(callback) {
+        function is429(err) {
+            return err instanceof Error_1.AccountError && err.status === 429;
+        }
+        try {
+            const request = this.client.request("post", "/shrink");
+            return compat_1.nodeify(request.catch(err => {
+                if (err instanceof Error_1.ClientError || is429(err))
+                    return;
+                throw err;
+            }).then(function ignore() { }), callback);
+        }
+        catch (err) {
+            return compat_1.nodeify(Promise.reject(err), callback);
+        }
+    }
+}
+exports.default = new Tinify;
+
 
 /***/ })
 

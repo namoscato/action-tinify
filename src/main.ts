@@ -1,11 +1,13 @@
 import * as core from '@actions/core'
 import * as github from '@actions/github'
-import {Context, ContextEventName, File} from 'github'
+import {Context, ContextEventName, File} from 'types/github'
 import Images from 'images'
+import tinify from 'tinify'
 
 async function run(): Promise<void> {
   try {
-    // const apiKey = core.getInput('api_key', {required: true})
+    tinify.key = core.getInput('api_key', {required: true})
+
     const githubToken = core.getInput('github_token', {required: true})
 
     const octokit = github.getOctokit(githubToken)
@@ -54,7 +56,10 @@ async function run(): Promise<void> {
       }
     }
 
-    core.debug(`filenames: \n${Array.from(images.all()).join('\n')}`)
+    for (const image of images.all()) {
+      core.info(`[${image.getFilename()}] Compressing image`)
+      await image.compress()
+    }
   } catch (error) {
     core.debug(error.stack)
     core.setFailed(error.message)
