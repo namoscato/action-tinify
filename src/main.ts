@@ -35,7 +35,13 @@ async function run(): Promise<void> {
 }
 
 function assertUnsupportedEvent(context: Context): never {
-  throw new Error(`Unsupported event ${context.eventName}`)
+  throw new Error(
+    `Unsupported event ${
+      context.eventName
+    } (currently supported events include ${Object.values(
+      ContextEventName
+    ).join(', ')})`
+  )
 }
 
 run()

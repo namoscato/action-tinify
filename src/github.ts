@@ -5,7 +5,7 @@ import WebhookPayloadPullRequest = Webhooks.WebhookPayloadPullRequest
 
 export enum ContextEventName {
   Push = 'push',
-  PullRequest = 'pull-request'
+  PullRequest = 'pull_request'
 }
 
 type ContextBase = typeof context
