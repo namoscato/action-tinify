@@ -7,7 +7,7 @@ async function run(): Promise<void> {
     const githubToken = core.getInput('github_token', {required: true})
 
     const context = github.context
-    const payload = github.context.payload
+    const payload = context.payload
 
     let commits: any[]
 
@@ -28,6 +28,7 @@ async function run(): Promise<void> {
 
     core.debug(`commits: ${JSON.stringify(commits, null, 4)}`)
   } catch (error) {
+    core.debug(error)
     core.setFailed(error.message)
   }
 }
