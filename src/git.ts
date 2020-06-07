@@ -1,9 +1,23 @@
 import * as core from '@actions/core'
+import * as exec from '@actions/exec'
+import * as github from '@actions/github'
 import {Context, ContextEventName, File} from './types/github'
 import {GitHub} from '@actions/github/lib/utils'
 
+export interface Commit {
+  branch?: string
+  files: string[]
+  userName: string
+  userEmail: string
+  message: string
+}
+
 export default class Git {
-  constructor(private readonly octokit: InstanceType<typeof GitHub>) {}
+  private octokit: InstanceType<typeof GitHub>
+
+  constructor(readonly token: string) {
+    this.octokit = github.getOctokit(token)
+  }
 
   async getFiles(context: Context): Promise<File[]> {
     const filePromises: Promise<File[]>[] = []
@@ -51,6 +65,39 @@ export default class Git {
         return result
       }, [])
     })
+  }
+
+  async commit(commit: Commit): Promise<void> {
+    if (commit.branch) {
+      await exec.exec('git', ['checkout', commit.branch])
+    }
+
+    await exec.exec('git', ['add', ...commit.files])
+
+    await exec.exec('git', [
+      `-c user.name="${commit.userName}"`,
+      `-c user.email="${commit.userEmail}"`,
+      'commit',
+      `-m ${Git.getCommitMessage(commit)}`
+    ])
+
+    await exec.exec('git', ['push', 'origin'])
+  }
+
+  private static getCommitMessage(commit: Commit): string {
+    let message = commit.message
+
+    if (message) {
+      return message
+    }
+
+    message = 'Compress image'
+
+    if (commit.files.length > 1) {
+      message += 's'
+    }
+
+    return message
   }
 }
 

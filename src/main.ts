@@ -8,9 +8,7 @@ import Git from './git'
 async function run(): Promise<void> {
   try {
     tinify.key = core.getInput('api_key', {required: true})
-    const git = new Git(
-      github.getOctokit(core.getInput('github_token', {required: true}))
-    )
+    const git = new Git(core.getInput('github_token', {required: true}))
 
     const files = await git.getFiles(github.context as Context)
     const images = new Images()
@@ -19,13 +17,26 @@ async function run(): Promise<void> {
       images.addFile(file.filename)
     }
 
+    const compressedImages = []
+
     for (const image of images) {
-      core.info(`[${image.getFilename()}] Compressing image`)
-      await image.compress()
+      if (await image.compress()) {
+        compressedImages.push(image.getFilename())
+      }
+    }
+
+    if (compressedImages.length) {
+      git.commit({
+        branch: process.env.GITHUB_HEAD_REF,
+        files: compressedImages,
+        userName: core.getInput('commit_user_name'),
+        userEmail: core.getInput('commit_user_email'),
+        message: core.getInput('commit_message')
+      })
     }
   } catch (error) {
-    core.debug(error.stack)
     core.setFailed(error.message)
+    core.debug(error.stack)
   }
 }
 

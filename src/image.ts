@@ -6,19 +6,33 @@ import bytes from 'bytes'
 import ExifReader from 'exifreader'
 import xattr from 'fs-xattr'
 
+/** extended file attribute name used to track state across workflow runs */
+const ATTR_NAME = 'com.tinypng.optimized'
+
 export default class Image {
   private source?: Source
 
   constructor(private readonly filename: string) {}
 
-  async compress(): Promise<void> {
-    this.logInfo('Before')
+  async compress(): Promise<boolean> {
+    try {
+      xattr.getSync(this.filename, ATTR_NAME)
 
-    // this.source = tinify.fromFile(this.filename)
-    //
-    // return this.source.toFile(this.filename).then(() => {
-    //   this.logInfo('After')
-    // })
+      core.debug(`[${this.filename}] Skipping already compressed image`)
+
+      return false
+    } catch (e) {
+      this.logInfo('Before')
+
+      core.info(`[${this.filename}] Compressing image`)
+
+      await tinify.fromFile(this.filename).toFile(this.filename)
+      xattr.setSync(this.filename, ATTR_NAME, '1')
+
+      this.logInfo('After')
+
+      return true
+    }
   }
 
   getFilename(): string {

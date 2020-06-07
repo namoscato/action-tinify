@@ -8,6 +8,17 @@ inputs:
   github_token:
     description: 'GITHUB_TOKEN secret'
     required: true
+  commit_user_name:
+    description: 'Git user.name'
+    required: false
+    default: ${{ github.actor }}
+  commit_user_email:
+    description: 'Git user.email'
+    required: false
+    default: ${{ github.actor }}@users.noreply.github.com
+  commit_message:
+    description: 'Custom commit message'
+    required: false
 runs:
   using: 'docker'
   image: 'Dockerfile'
