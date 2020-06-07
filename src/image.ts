@@ -26,8 +26,8 @@ export default class Image {
 
       core.info(`[${this.filename}] Compressing image`)
 
-      await tinify.fromFile(this.filename).toFile(this.filename)
-      // xattr.setSync(this.filename, ATTR_NAME, '1')
+      // await tinify.fromFile(this.filename).toFile(this.filename)
+      xattr.setSync(this.filename, ATTR_NAME, '1')
 
       this.logInfo('After')
 

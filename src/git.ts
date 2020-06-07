@@ -1,8 +1,35 @@
 import * as core from '@actions/core'
 import * as exec from '@actions/exec'
 import * as github from '@actions/github'
-import {Context, ContextEventName, File} from './types/github'
 import {GitHub} from '@actions/github/lib/utils'
+import Webhooks from '@octokit/webhooks'
+import WebhookPayloadPush = Webhooks.WebhookPayloadPush
+import WebhookPayloadPullRequest = Webhooks.WebhookPayloadPullRequest
+
+export interface File {
+  filename: string
+}
+
+//region context
+export enum ContextEventName {
+  Push = 'push',
+  PullRequest = 'pull_request'
+}
+
+type ContextBase = typeof github.context
+
+interface ContextPush extends ContextBase {
+  eventName: ContextEventName.Push
+  payload: WebhookPayloadPush
+}
+
+interface ContextPullRequest extends ContextBase {
+  eventName: ContextEventName.PullRequest
+  payload: WebhookPayloadPullRequest
+}
+
+export type Context = ContextPush | ContextPullRequest
+//endregion
 
 export interface Commit {
   files: string[]
@@ -19,7 +46,7 @@ export default class Git {
   }
 
   async getFiles(context: Context): Promise<File[]> {
-    const filePromises: Promise<File[]>[] = []
+    const filesPromises: Promise<File[]>[] = []
 
     switch (context.eventName) {
       case ContextEventName.Push:
@@ -28,7 +55,7 @@ export default class Git {
 
           core.debug(`[${context.eventName}] Fetching files for commit ${ref}`)
 
-          filePromises.push(
+          filesPromises.push(
             this.octokit.repos
               .getCommit({
                 ...context.repo,
@@ -43,7 +70,7 @@ export default class Git {
           `[${context.eventName}] Fetching files for pull request ${context.payload.number}`
         )
 
-        filePromises.push(
+        filesPromises.push(
           this.octokit.paginate(
             'GET /repos/:owner/:repo/pulls/:pull_number/files',
             {
@@ -57,7 +84,7 @@ export default class Git {
         assertUnsupportedEvent(context)
     }
 
-    return Promise.all(filePromises).then(files => {
+    return Promise.all(filesPromises).then(files => {
       return files.reduce((result, value) => {
         result.push(...value)
 
