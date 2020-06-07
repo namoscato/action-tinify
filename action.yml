@@ -1,10 +1,24 @@
-name: 'Your name here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'Tinify Action'
+description: 'Compress images with the Tinify API'
+author: 'namoscato'
 inputs:
-  myInput:              # change this
-    description: 'input description here'
-    default: 'default value if applicable'
+  api_key:
+    description: 'Tinify API key'
+    required: true
+  github_token:
+    description: 'GITHUB_TOKEN secret'
+    required: true
+  commit_user_name:
+    description: 'Git user.name'
+    required: false
+    default: ${{ github.actor }}
+  commit_user_email:
+    description: 'Git user.email'
+    required: false
+    default: ${{ github.actor }}@users.noreply.github.com
+  commit_message:
+    description: 'Custom commit message'
+    required: false
 runs:
   using: 'node12'
   main: 'dist/index.js'
