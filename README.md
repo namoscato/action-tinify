@@ -2,6 +2,8 @@
 
 [GitHub Action](https://github.com/features/actions) to compress images with the [Tinify API](https://tinypng.com/developers).
 
+![Example commit](https://i.imgur.com/FWOosON.png)
+
 ## Usage
 
 ```yaml

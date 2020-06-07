@@ -4,9 +4,10 @@ import tinify from 'tinify'
 import bytes from 'bytes'
 
 export default class Image {
-  private sizes: number[] = []
-
-  constructor(private readonly filename: string) {}
+  constructor(
+    private readonly filename: string,
+    private sizes: number[] = []
+  ) {}
 
   async compress(): Promise<boolean> {
     this.setSize()

@@ -2617,6 +2617,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(__webpack_require__(470));
 const exec = __importStar(__webpack_require__(986));
 const github = __importStar(__webpack_require__(469));
+const git_utils_1 = __webpack_require__(939);
 //region context
 var ContextEventName;
 (function (ContextEventName) {
@@ -2670,7 +2671,7 @@ class Git {
             core.info('Create commit');
             yield exec.exec('git', [
                 'commit',
-                `--message=${Git.getCommitMessage(commit)}`,
+                `--message=${git_utils_1.getCommitMessage(commit)}`,
                 `--message=${commit.files
                     .map(image => `* [${image.getFilename()}] ${image.getCompressionSummary()}`)
                     .join('\n')}`
@@ -2678,17 +2679,6 @@ class Git {
             core.info('Push commit');
             yield exec.exec('git', ['push', 'origin']);
         });
-    }
-    static getCommitMessage(commit) {
-        let message = commit.message;
-        if (message) {
-            return message;
-        }
-        message = 'Compress image';
-        if (commit.files.length > 1) {
-            message += 's';
-        }
-        return message;
     }
 }
 exports.default = Git;
@@ -3232,9 +3222,9 @@ const fs = __importStar(__webpack_require__(747));
 const tinify_1 = __importDefault(__webpack_require__(82));
 const bytes_1 = __importDefault(__webpack_require__(63));
 class Image {
-    constructor(filename) {
+    constructor(filename, sizes = []) {
         this.filename = filename;
-        this.sizes = [];
+        this.sizes = sizes;
     }
     compress() {
         return __awaiter(this, void 0, void 0, function* () {
@@ -12151,6 +12141,28 @@ function withCustomRequest(customRequest) {
 exports.graphql = graphql$1;
 exports.withCustomRequest = withCustomRequest;
 //# sourceMappingURL=index.js.map
+
+
+/***/ }),
+
+/***/ 939:
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+function getCommitMessage(commit) {
+    let message = commit.message;
+    if (message) {
+        return message;
+    }
+    message = 'Compress image';
+    if (commit.files.length > 1) {
+        message += 's';
+    }
+    return message;
+}
+exports.getCommitMessage = getCommitMessage;
 
 
 /***/ }),

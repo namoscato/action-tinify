@@ -4,6 +4,7 @@ import * as github from '@actions/github'
 import {GitHub} from '@actions/github/lib/utils'
 import Webhooks from '@octokit/webhooks'
 import Image from './image'
+import {getCommitMessage} from './git-utils'
 import WebhookPayloadPush = Webhooks.WebhookPayloadPush
 import WebhookPayloadPullRequest = Webhooks.WebhookPayloadPullRequest
 
@@ -113,7 +114,7 @@ export default class Git {
     core.info('Create commit')
     await exec.exec('git', [
       'commit',
-      `--message=${Git.getCommitMessage(commit)}`,
+      `--message=${getCommitMessage(commit)}`,
       `--message=${commit.files
         .map(
           image => `* [${image.getFilename()}] ${image.getCompressionSummary()}`
@@ -123,22 +124,6 @@ export default class Git {
 
     core.info('Push commit')
     await exec.exec('git', ['push', 'origin'])
-  }
-
-  private static getCommitMessage(commit: Commit): string {
-    let message = commit.message
-
-    if (message) {
-      return message
-    }
-
-    message = 'Compress image'
-
-    if (commit.files.length > 1) {
-      message += 's'
-    }
-
-    return message
   }
 }
 
