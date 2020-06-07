@@ -9,6 +9,7 @@ import WebhookPayloadPullRequest = Webhooks.WebhookPayloadPullRequest
 
 export interface File {
   filename: string
+  status: string
 }
 
 //region context
@@ -87,7 +88,11 @@ export default class Git {
 
     return Promise.all(filesPromises).then(files => {
       return files.reduce((result, value) => {
-        result.push(...value)
+        result.push(
+          ...value.filter(
+            file => -1 !== ['added', 'modified'].indexOf(file.status)
+          )
+        )
 
         return result
       }, [])
@@ -95,14 +100,17 @@ export default class Git {
   }
 
   async commit(commit: Commit): Promise<void> {
+    core.info('Adding modified images')
     await exec.exec('git', [
       'add',
       ...commit.files.map(image => image.getFilename())
     ])
 
+    core.info('Configuring git')
     await exec.exec('git', ['config', 'user.name', commit.userName])
     await exec.exec('git', ['config', 'user.email', commit.userEmail])
 
+    core.info('Create commit')
     await exec.exec('git', [
       'commit',
       `--message=${Git.getCommitMessage(commit)}`,
@@ -113,6 +121,7 @@ export default class Git {
         .join('\n')}`
     ])
 
+    core.info('Push commit')
     await exec.exec('git', ['push', 'origin'])
   }
 

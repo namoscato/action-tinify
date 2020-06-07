@@ -21,11 +21,11 @@ export default class Images implements Iterable<Image> {
     const mimeType = mime.getType(filename)
 
     if (null === mimeType) {
-      return core.warning(`[${filename}] Skipping file with unknown mime type`)
+      return core.debug(`[${filename}] Skipping file with unknown mime type`)
     }
 
     if (-1 === SUPPORTED_MIME_TYPES.indexOf(mimeType)) {
-      return core.info(
+      return core.debug(
         `[${filename}] Skipping file with unsupported mime type ${mimeType}`
       )
     }
