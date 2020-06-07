@@ -1,9 +1,9 @@
 import * as core from '@actions/core'
 import * as github from '@actions/github'
-import {Context} from 'types/github'
-import Images from 'images'
 import tinify from 'tinify'
-import Git from 'git'
+import {Context} from './types/github'
+import Images from './images'
+import Git from './git'
 
 async function run(): Promise<void> {
   try {

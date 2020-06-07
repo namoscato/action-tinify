@@ -1,5 +1,5 @@
 import * as core from '@actions/core'
-import {Context, ContextEventName, File} from 'types/github'
+import {Context, ContextEventName, File} from './types/github'
 import {GitHub} from '@actions/github/lib/utils'
 
 export default class Git {

@@ -1,6 +1,6 @@
 import * as core from '@actions/core'
 import * as mime from 'mime'
-import Image from 'image'
+import Image from './image'
 
 const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png']
 
