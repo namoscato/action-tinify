@@ -16,16 +16,16 @@ export default class Images implements Iterable<Image> {
     const mimeType = mime.getType(filename)
 
     if (null === mimeType) {
-      return core.debug(`[${filename}] Skipping file with unknown mime type`)
+      return core.warning(`[${filename}] Skipping file with unknown mime type`)
     }
 
     if (-1 === SUPPORTED_MIME_TYPES.indexOf(mimeType)) {
-      return core.debug(
+      return core.info(
         `[${filename}] Skipping file with unsupported mime type ${mimeType}`
       )
     }
 
-    core.debug(`[${filename}] Adding ${mimeType} image`)
+    core.info(`[${filename}] Adding ${mimeType} image`)
 
     this.filenames.add(filename)
     this.images.push(new Image(filename))

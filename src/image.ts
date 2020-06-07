@@ -1,55 +1,43 @@
 import * as core from '@actions/core'
 import * as fs from 'fs'
-import Source from 'tinify/lib/tinify/Source'
 import tinify from 'tinify'
 import bytes from 'bytes'
-import ExifReader from 'exifreader'
-import xattr from 'fs-xattr'
-
-/** extended file attribute name used to track state across workflow runs */
-const ATTR_NAME = 'com.tinypng.optimized'
 
 export default class Image {
-  private source?: Source
+  private sizes: number[] = []
 
   constructor(private readonly filename: string) {}
 
   async compress(): Promise<boolean> {
-    try {
-      xattr.getSync(this.filename, ATTR_NAME)
+    this.setSize()
 
-      core.debug(`[${this.filename}] Skipping already compressed image`)
+    core.info(`[${this.filename}] Compressing image`)
 
-      return false
-    } catch (e) {
-      this.logInfo('Before')
+    await tinify.fromFile(this.filename).toFile(this.filename)
 
-      core.info(`[${this.filename}] Compressing image`)
+    this.setSize()
 
-      // await tinify.fromFile(this.filename).toFile(this.filename)
-      xattr.setSync(this.filename, ATTR_NAME, '1')
-
-      this.logInfo('After')
-
-      return true
-    }
+    return true
   }
 
   getFilename(): string {
     return this.filename
   }
 
-  private getSize(): number {
-    return fs.statSync(this.filename).size
+  getCompressionSummary(): string {
+    const before = this.sizes[0]
+    const after = this.sizes[1]
+
+    return `${bytes.format(after - before)} (${Math.floor(
+      100 * (after / before)
+    )}%)`
   }
 
-  private logInfo(message: string): void {
-    const info = [
-      bytes.format(this.getSize()),
-      JSON.stringify(ExifReader.load(fs.readFileSync(this.filename)), null, 4),
-      JSON.stringify(xattr.listSync(this.filename))
-    ]
+  private setSize(): void {
+    const size = fs.statSync(this.filename).size
 
-    core.debug(`[${this.filename}] ${message}: ${info.join('\n')}`)
+    this.sizes.push(size)
+
+    core.debug(`[${this.filename}] ${bytes.format(size)}`)
   }
 }

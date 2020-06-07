@@ -3,6 +3,7 @@ import * as exec from '@actions/exec'
 import * as github from '@actions/github'
 import {GitHub} from '@actions/github/lib/utils'
 import Webhooks from '@octokit/webhooks'
+import Image from './image'
 import WebhookPayloadPush = Webhooks.WebhookPayloadPush
 import WebhookPayloadPullRequest = Webhooks.WebhookPayloadPullRequest
 
@@ -32,7 +33,7 @@ export type Context = ContextPush | ContextPullRequest
 //endregion
 
 export interface Commit {
-  files: string[]
+  files: Image[]
   userName: string
   userEmail: string
   message: string
@@ -53,7 +54,7 @@ export default class Git {
         for (const commit of context.payload.commits) {
           const ref = commit.id
 
-          core.debug(`[${context.eventName}] Fetching files for commit ${ref}`)
+          core.info(`[${context.eventName}] Fetching files for commit ${ref}`)
 
           filesPromises.push(
             this.octokit.repos
@@ -66,7 +67,7 @@ export default class Git {
         }
         break
       case ContextEventName.PullRequest:
-        core.debug(
+        core.info(
           `[${context.eventName}] Fetching files for pull request ${context.payload.number}`
         )
 
@@ -94,12 +95,23 @@ export default class Git {
   }
 
   async commit(commit: Commit): Promise<void> {
-    await exec.exec('git', ['add', ...commit.files])
+    await exec.exec('git', [
+      'add',
+      ...commit.files.map(image => image.getFilename())
+    ])
 
     await exec.exec('git', ['config', 'user.name', commit.userName])
     await exec.exec('git', ['config', 'user.email', commit.userEmail])
 
-    await exec.exec('git', ['commit', `-m ${Git.getCommitMessage(commit)}`])
+    await exec.exec('git', [
+      'commit',
+      `-m ${Git.getCommitMessage(commit)}`,
+      `-m ${commit.files
+        .map(
+          image => `* [${image.getFilename()}] ${image.getCompressionSummary()}`
+        )
+        .join('\n')}`
+    ])
 
     await exec.exec('git', ['push', 'origin'])
   }

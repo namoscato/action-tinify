@@ -9,22 +9,27 @@ async function run(): Promise<void> {
     tinify.key = core.getInput('api_key', {required: true})
     const git = new Git(core.getInput('github_token', {required: true}))
 
+    core.startGroup('Collecting affected images')
     const files = await git.getFiles(github.context as Context)
     const images = new Images()
 
     for (const file of files) {
       images.addFile(file.filename)
     }
+    core.endGroup()
 
+    core.startGroup('Compressing images')
     const compressedImages = []
 
     for (const image of images) {
       if (await image.compress()) {
-        compressedImages.push(image.getFilename())
+        compressedImages.push(image)
       }
     }
+    core.endGroup()
 
     if (compressedImages.length) {
+      core.startGroup('Committing changes')
       git
         .commit({
           files: compressedImages,
@@ -35,6 +40,7 @@ async function run(): Promise<void> {
         .catch(function(error) {
           throw error
         })
+      core.endGroup()
     }
   } catch (error) {
     core.setFailed(error.message)
