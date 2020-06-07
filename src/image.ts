@@ -28,8 +28,8 @@ export default class Image {
     const before = this.sizes[0]
     const after = this.sizes[1]
 
-    return `${bytes.format(after - before)} (${Math.floor(
-      100 * (after / before)
+    return `${bytes.format(after - before)} (-${Math.floor(
+      100 * (1 - after / before)
     )}%)`
   }
 

@@ -43,6 +43,303 @@ module.exports =
 /************************************************************************/
 /******/ ({
 
+/***/ 1:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const childProcess = __webpack_require__(129);
+const path = __webpack_require__(622);
+const util_1 = __webpack_require__(669);
+const ioUtil = __webpack_require__(672);
+const exec = util_1.promisify(childProcess.exec);
+/**
+ * Copies a file or folder.
+ * Based off of shelljs - https://github.com/shelljs/shelljs/blob/9237f66c52e5daa40458f94f9565e18e8132f5a6/src/cp.js
+ *
+ * @param     source    source path
+ * @param     dest      destination path
+ * @param     options   optional. See CopyOptions.
+ */
+function cp(source, dest, options = {}) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const { force, recursive } = readCopyOptions(options);
+        const destStat = (yield ioUtil.exists(dest)) ? yield ioUtil.stat(dest) : null;
+        // Dest is an existing file, but not forcing
+        if (destStat && destStat.isFile() && !force) {
+            return;
+        }
+        // If dest is an existing directory, should copy inside.
+        const newDest = destStat && destStat.isDirectory()
+            ? path.join(dest, path.basename(source))
+            : dest;
+        if (!(yield ioUtil.exists(source))) {
+            throw new Error(`no such file or directory: ${source}`);
+        }
+        const sourceStat = yield ioUtil.stat(source);
+        if (sourceStat.isDirectory()) {
+            if (!recursive) {
+                throw new Error(`Failed to copy. ${source} is a directory, but tried to copy without recursive flag.`);
+            }
+            else {
+                yield cpDirRecursive(source, newDest, 0, force);
+            }
+        }
+        else {
+            if (path.relative(source, newDest) === '') {
+                // a file cannot be copied to itself
+                throw new Error(`'${newDest}' and '${source}' are the same file`);
+            }
+            yield copyFile(source, newDest, force);
+        }
+    });
+}
+exports.cp = cp;
+/**
+ * Moves a path.
+ *
+ * @param     source    source path
+ * @param     dest      destination path
+ * @param     options   optional. See MoveOptions.
+ */
+function mv(source, dest, options = {}) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (yield ioUtil.exists(dest)) {
+            let destExists = true;
+            if (yield ioUtil.isDirectory(dest)) {
+                // If dest is directory copy src into dest
+                dest = path.join(dest, path.basename(source));
+                destExists = yield ioUtil.exists(dest);
+            }
+            if (destExists) {
+                if (options.force == null || options.force) {
+                    yield rmRF(dest);
+                }
+                else {
+                    throw new Error('Destination already exists');
+                }
+            }
+        }
+        yield mkdirP(path.dirname(dest));
+        yield ioUtil.rename(source, dest);
+    });
+}
+exports.mv = mv;
+/**
+ * Remove a path recursively with force
+ *
+ * @param inputPath path to remove
+ */
+function rmRF(inputPath) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (ioUtil.IS_WINDOWS) {
+            // Node doesn't provide a delete operation, only an unlink function. This means that if the file is being used by another
+            // program (e.g. antivirus), it won't be deleted. To address this, we shell out the work to rd/del.
+            try {
+                if (yield ioUtil.isDirectory(inputPath, true)) {
+                    yield exec(`rd /s /q "${inputPath}"`);
+                }
+                else {
+                    yield exec(`del /f /a "${inputPath}"`);
+                }
+            }
+            catch (err) {
+                // if you try to delete a file that doesn't exist, desired result is achieved
+                // other errors are valid
+                if (err.code !== 'ENOENT')
+                    throw err;
+            }
+            // Shelling out fails to remove a symlink folder with missing source, this unlink catches that
+            try {
+                yield ioUtil.unlink(inputPath);
+            }
+            catch (err) {
+                // if you try to delete a file that doesn't exist, desired result is achieved
+                // other errors are valid
+                if (err.code !== 'ENOENT')
+                    throw err;
+            }
+        }
+        else {
+            let isDir = false;
+            try {
+                isDir = yield ioUtil.isDirectory(inputPath);
+            }
+            catch (err) {
+                // if you try to delete a file that doesn't exist, desired result is achieved
+                // other errors are valid
+                if (err.code !== 'ENOENT')
+                    throw err;
+                return;
+            }
+            if (isDir) {
+                yield exec(`rm -rf "${inputPath}"`);
+            }
+            else {
+                yield ioUtil.unlink(inputPath);
+            }
+        }
+    });
+}
+exports.rmRF = rmRF;
+/**
+ * Make a directory.  Creates the full path with folders in between
+ * Will throw if it fails
+ *
+ * @param   fsPath        path to create
+ * @returns Promise<void>
+ */
+function mkdirP(fsPath) {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield ioUtil.mkdirP(fsPath);
+    });
+}
+exports.mkdirP = mkdirP;
+/**
+ * Returns path of a tool had the tool actually been invoked.  Resolves via paths.
+ * If you check and the tool does not exist, it will throw.
+ *
+ * @param     tool              name of the tool
+ * @param     check             whether to check if tool exists
+ * @returns   Promise<string>   path to tool
+ */
+function which(tool, check) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (!tool) {
+            throw new Error("parameter 'tool' is required");
+        }
+        // recursive when check=true
+        if (check) {
+            const result = yield which(tool, false);
+            if (!result) {
+                if (ioUtil.IS_WINDOWS) {
+                    throw new Error(`Unable to locate executable file: ${tool}. Please verify either the file path exists or the file can be found within a directory specified by the PATH environment variable. Also verify the file has a valid extension for an executable file.`);
+                }
+                else {
+                    throw new Error(`Unable to locate executable file: ${tool}. Please verify either the file path exists or the file can be found within a directory specified by the PATH environment variable. Also check the file mode to verify the file is executable.`);
+                }
+            }
+        }
+        try {
+            // build the list of extensions to try
+            const extensions = [];
+            if (ioUtil.IS_WINDOWS && process.env.PATHEXT) {
+                for (const extension of process.env.PATHEXT.split(path.delimiter)) {
+                    if (extension) {
+                        extensions.push(extension);
+                    }
+                }
+            }
+            // if it's rooted, return it if exists. otherwise return empty.
+            if (ioUtil.isRooted(tool)) {
+                const filePath = yield ioUtil.tryGetExecutablePath(tool, extensions);
+                if (filePath) {
+                    return filePath;
+                }
+                return '';
+            }
+            // if any path separators, return empty
+            if (tool.includes('/') || (ioUtil.IS_WINDOWS && tool.includes('\\'))) {
+                return '';
+            }
+            // build the list of directories
+            //
+            // Note, technically "where" checks the current directory on Windows. From a toolkit perspective,
+            // it feels like we should not do this. Checking the current directory seems like more of a use
+            // case of a shell, and the which() function exposed by the toolkit should strive for consistency
+            // across platforms.
+            const directories = [];
+            if (process.env.PATH) {
+                for (const p of process.env.PATH.split(path.delimiter)) {
+                    if (p) {
+                        directories.push(p);
+                    }
+                }
+            }
+            // return the first match
+            for (const directory of directories) {
+                const filePath = yield ioUtil.tryGetExecutablePath(directory + path.sep + tool, extensions);
+                if (filePath) {
+                    return filePath;
+                }
+            }
+            return '';
+        }
+        catch (err) {
+            throw new Error(`which failed with message ${err.message}`);
+        }
+    });
+}
+exports.which = which;
+function readCopyOptions(options) {
+    const force = options.force == null ? true : options.force;
+    const recursive = Boolean(options.recursive);
+    return { force, recursive };
+}
+function cpDirRecursive(sourceDir, destDir, currentDepth, force) {
+    return __awaiter(this, void 0, void 0, function* () {
+        // Ensure there is not a run away recursive copy
+        if (currentDepth >= 255)
+            return;
+        currentDepth++;
+        yield mkdirP(destDir);
+        const files = yield ioUtil.readdir(sourceDir);
+        for (const fileName of files) {
+            const srcFile = `${sourceDir}/${fileName}`;
+            const destFile = `${destDir}/${fileName}`;
+            const srcFileStat = yield ioUtil.lstat(srcFile);
+            if (srcFileStat.isDirectory()) {
+                // Recurse
+                yield cpDirRecursive(srcFile, destFile, currentDepth, force);
+            }
+            else {
+                yield copyFile(srcFile, destFile, force);
+            }
+        }
+        // Change the mode for the newly created directory
+        yield ioUtil.chmod(destDir, (yield ioUtil.stat(sourceDir)).mode);
+    });
+}
+// Buffered file copy
+function copyFile(srcFile, destFile, force) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if ((yield ioUtil.lstat(srcFile)).isSymbolicLink()) {
+            // unlink/re-link it
+            try {
+                yield ioUtil.lstat(destFile);
+                yield ioUtil.unlink(destFile);
+            }
+            catch (e) {
+                // Try to override file permission
+                if (e.code === 'EPERM') {
+                    yield ioUtil.chmod(destFile, '0666');
+                    yield ioUtil.unlink(destFile);
+                }
+                // other errors = it doesn't exist, no work to do
+            }
+            // Copy over symlink
+            const symlinkFull = yield ioUtil.readlink(srcFile);
+            yield ioUtil.symlink(symlinkFull, destFile, ioUtil.IS_WINDOWS ? 'junction' : null);
+        }
+        else if (!(yield ioUtil.exists(destFile)) || force) {
+            yield ioUtil.copyFile(srcFile, destFile);
+        }
+    });
+}
+//# sourceMappingURL=io.js.map
+
+/***/ }),
+
 /***/ 2:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -2295,6 +2592,109 @@ exports.default = Source;
 
 /***/ }),
 
+/***/ 136:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const core = __importStar(__webpack_require__(470));
+const exec = __importStar(__webpack_require__(986));
+const github = __importStar(__webpack_require__(469));
+//region context
+var ContextEventName;
+(function (ContextEventName) {
+    ContextEventName["Push"] = "push";
+    ContextEventName["PullRequest"] = "pull_request";
+})(ContextEventName = exports.ContextEventName || (exports.ContextEventName = {}));
+class Git {
+    constructor(token) {
+        this.token = token;
+        this.octokit = github.getOctokit(token);
+    }
+    getFiles(context) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const filesPromises = [];
+            switch (context.eventName) {
+                case ContextEventName.Push:
+                    for (const commit of context.payload.commits) {
+                        const ref = commit.id;
+                        core.info(`[${context.eventName}] Fetching files for commit ${ref}`);
+                        filesPromises.push(this.octokit.repos
+                            .getCommit(Object.assign(Object.assign({}, context.repo), { ref }))
+                            .then(response => response.data.files));
+                    }
+                    break;
+                case ContextEventName.PullRequest:
+                    core.info(`[${context.eventName}] Fetching files for pull request ${context.payload.number}`);
+                    filesPromises.push(this.octokit.paginate('GET /repos/:owner/:repo/pulls/:pull_number/files', Object.assign(Object.assign({}, context.repo), { pull_number: context.payload.number // eslint-disable-line @typescript-eslint/camelcase
+                     })));
+                    break;
+                default:
+                    assertUnsupportedEvent(context);
+            }
+            return Promise.all(filesPromises).then(files => {
+                return files.reduce((result, value) => {
+                    result.push(...value);
+                    return result;
+                }, []);
+            });
+        });
+    }
+    commit(commit) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield exec.exec('git', [
+                'add',
+                ...commit.files.map(image => image.getFilename())
+            ]);
+            yield exec.exec('git', ['config', 'user.name', commit.userName]);
+            yield exec.exec('git', ['config', 'user.email', commit.userEmail]);
+            yield exec.exec('git', [
+                'commit',
+                `--message=${Git.getCommitMessage(commit)}`,
+                `--message=${commit.files
+                    .map(image => `* [${image.getFilename()}] ${image.getCompressionSummary()}`)
+                    .join('\n')}`
+            ]);
+            yield exec.exec('git', ['push', 'origin']);
+        });
+    }
+    static getCommitMessage(commit) {
+        let message = commit.message;
+        if (message) {
+            return message;
+        }
+        message = 'Compress image';
+        if (commit.files.length > 1) {
+            message += 's';
+        }
+        return message;
+    }
+}
+exports.default = Git;
+function assertUnsupportedEvent(context) {
+    throw new Error(`Unsupported event ${context.eventName} (currently supported events include ${Object.values(ContextEventName).join(', ')})`);
+}
+
+
+/***/ }),
+
 /***/ 141:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
@@ -2749,31 +3149,113 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(__webpack_require__(470));
 const github = __importStar(__webpack_require__(469));
-const images_1 = __importDefault(__webpack_require__(666));
 const tinify_1 = __importDefault(__webpack_require__(82));
-const git_1 = __importDefault(__webpack_require__(984));
+const images_1 = __importDefault(__webpack_require__(275));
+const git_1 = __importDefault(__webpack_require__(136));
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             tinify_1.default.key = core.getInput('api_key', { required: true });
-            const git = new git_1.default(github.getOctokit(core.getInput('github_token', { required: true })));
+            const git = new git_1.default(core.getInput('github_token', { required: true }));
+            core.startGroup('Collecting affected images');
             const files = yield git.getFiles(github.context);
             const images = new images_1.default();
             for (const file of files) {
                 images.addFile(file.filename);
             }
+            core.endGroup();
+            core.startGroup('Compressing images');
+            const compressedImages = [];
             for (const image of images) {
-                core.info(`[${image.getFilename()}] Compressing image`);
-                yield image.compress();
+                if (yield image.compress()) {
+                    compressedImages.push(image);
+                }
+            }
+            core.endGroup();
+            if (compressedImages.length) {
+                core.startGroup('Committing changes');
+                git
+                    .commit({
+                    files: compressedImages,
+                    userName: core.getInput('commit_user_name'),
+                    userEmail: core.getInput('commit_user_email'),
+                    message: core.getInput('commit_message')
+                })
+                    .catch(function (error) {
+                    throw error;
+                });
+                core.endGroup();
             }
         }
         catch (error) {
-            core.debug(error.stack);
             core.setFailed(error.message);
+            core.debug(error.stack);
         }
     });
 }
 run();
+
+
+/***/ }),
+
+/***/ 202:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const core = __importStar(__webpack_require__(470));
+const fs = __importStar(__webpack_require__(747));
+const tinify_1 = __importDefault(__webpack_require__(82));
+const bytes_1 = __importDefault(__webpack_require__(63));
+class Image {
+    constructor(filename) {
+        this.filename = filename;
+        this.sizes = [];
+    }
+    compress() {
+        return __awaiter(this, void 0, void 0, function* () {
+            this.setSize();
+            core.info(`[${this.filename}] Compressing image`);
+            yield tinify_1.default.fromFile(this.filename).toFile(this.filename);
+            this.setSize();
+            return true;
+        });
+    }
+    getFilename() {
+        return this.filename;
+    }
+    getCompressionSummary() {
+        const before = this.sizes[0];
+        const after = this.sizes[1];
+        return `${bytes_1.default.format(after - before)} (-${Math.floor(100 * (1 - after / before))}%)`;
+    }
+    setSize() {
+        const size = fs.statSync(this.filename).size;
+        this.sizes.push(size);
+        core.debug(`[${this.filename}] ${bytes_1.default.format(size)}`);
+    }
+}
+exports.default = Image;
 
 
 /***/ }),
@@ -2884,94 +3366,6 @@ Mime.prototype.getExtension = function(type) {
 };
 
 module.exports = Mime;
-
-
-/***/ }),
-
-/***/ 243:
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
-
-"use strict";
-
-
-const addon = __webpack_require__(802)
-
-function validateArgument (key, val) {
-  switch (key) {
-    case 'path':
-      if (typeof val === 'string') return val
-      throw new TypeError('`path` must be a string')
-    case 'attr':
-      if (typeof val === 'string') return val
-      throw new TypeError('`attr` must be a string')
-    case 'value':
-      if (typeof val === 'string') return Buffer.from(val)
-      if (Buffer.isBuffer(val)) return val
-      throw new TypeError('`value` must be a string or buffer')
-    default:
-      throw new Error(`Unknown argument: ${key}`)
-  }
-}
-
-/* Async methods */
-
-exports.get = function get (path, attr) {
-  path = validateArgument('path', path)
-  attr = validateArgument('attr', attr)
-
-  return addon.get(path, attr)
-}
-
-exports.set = function set (path, attr, value) {
-  path = validateArgument('path', path)
-  attr = validateArgument('attr', attr)
-  value = validateArgument('value', value)
-
-  return addon.set(path, attr, value)
-}
-
-exports.list = function list (path) {
-  path = validateArgument('path', path)
-
-  return addon.list(path)
-}
-
-exports.remove = function remove (path, attr) {
-  path = validateArgument('path', path)
-  attr = validateArgument('attr', attr)
-
-  return addon.remove(path, attr)
-}
-
-/* Sync methods */
-
-exports.getSync = function getSync (path, attr) {
-  path = validateArgument('path', path)
-  attr = validateArgument('attr', attr)
-
-  return addon.getSync(path, attr)
-}
-
-exports.setSync = function setSync (path, attr, value) {
-  path = validateArgument('path', path)
-  attr = validateArgument('attr', attr)
-  value = validateArgument('value', value)
-
-  return addon.setSync(path, attr, value)
-}
-
-exports.listSync = function listSync (path) {
-  path = validateArgument('path', path)
-
-  return addon.listSync(path)
-}
-
-exports.removeSync = function removeSync (path, attr) {
-  path = validateArgument('path', path)
-  attr = validateArgument('attr', attr)
-
-  return addon.removeSync(path, attr)
-}
 
 
 /***/ }),
@@ -3194,6 +3588,55 @@ exports.Context = Context;
 
 /***/ }),
 
+/***/ 275:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const core = __importStar(__webpack_require__(470));
+const mime = __importStar(__webpack_require__(444));
+const image_1 = __importDefault(__webpack_require__(202));
+const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png'];
+class Images {
+    constructor() {
+        this.filenames = new Set();
+        this.images = [];
+    }
+    addFile(filename) {
+        if (this.filenames.has(filename)) {
+            return core.debug(`[${filename}] Skipping duplicate file`);
+        }
+        const mimeType = mime.getType(filename);
+        if (null === mimeType) {
+            return core.warning(`[${filename}] Skipping file with unknown mime type`);
+        }
+        if (-1 === SUPPORTED_MIME_TYPES.indexOf(mimeType)) {
+            return core.info(`[${filename}] Skipping file with unsupported mime type ${mimeType}`);
+        }
+        core.info(`[${filename}] Adding ${mimeType} image`);
+        this.filenames.add(filename);
+        this.images.push(new image_1.default(filename));
+    }
+    [Symbol.iterator]() {
+        return this.images.values();
+    }
+}
+exports.default = Images;
+
+
+/***/ }),
+
 /***/ 280:
 /***/ (function(module) {
 
@@ -3364,14 +3807,6 @@ paginateRest.VERSION = VERSION;
 exports.paginateRest = paginateRest;
 //# sourceMappingURL=index.js.map
 
-
-/***/ }),
-
-/***/ 310:
-/***/ (function(module) {
-
-!function(e,t){ true?module.exports=t():undefined}("undefined"!=typeof self?self:this,(function(){return function(e){var t={};function n(r){if(t[r])return t[r].exports;var i=t[r]={i:r,l:0,exports:{}};return e[r].call(i.exports,i,i.exports,n),i.l=1,i.exports}return n.m=e,n.c=t,n.d=function(e,t,r){n.o(e,t)||Object.defineProperty(e,t,{enumerable:1,get:r})},n.r=function(e){"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(e,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(e,"__esModule",{value:1})},n.t=function(e,t){if(1&t&&(e=n(e)),8&t)return e;if(4&t&&"object"==typeof e&&e&&e.__esModule)return e;var r=Object.create(null);if(n.r(r),Object.defineProperty(r,"default",{enumerable:1,value:e}),2&t&&"string"!=typeof e)for(var i in e)n.d(r,i,function(t){return e[t]}.bind(null,i));return r},n.n=function(e){var t=e&&e.__esModule?function(){return e.default}:function(){return e};return n.d(t,"a",t),t},n.o=function(e,t){return Object.prototype.hasOwnProperty.call(e,t)},n.p="",n(n.s=1)}([function(module,__webpack_exports__,__nested_webpack_require_1204__){"use strict";function get(){if("undefined"!=typeof DOMParser)return DOMParser;try{return eval("require")("xmldom").DOMParser}catch(e){return}}__webpack_exports__.a={get:get}},function(e,t,n){"use strict";function r(e,t,n){for(var r=[],i=0;i<n&&t+i<e.byteLength;i++)r.push(e.getUint8(t+i));return o(r)}function i(e,t,n){for(var r=[],i=0;i<n&&t+i<e.byteLength;i+=2)r.push(e.getUint16(t+i));return o(r)}function o(e){return e.map((function(e){return String.fromCharCode(e)})).join("")}function a(){for(var e=1;e<arguments.length;e++)for(var t in arguments[e])arguments[0][t]=arguments[e][t];return arguments[0]}function u(e){return(u="function"==typeof Symbol&&"symbol"==typeof Symbol.iterator?function(e){return typeof e}:function(e){return e&&"function"==typeof Symbol&&e.constructor===Symbol&&e!==Symbol.prototype?"symbol":typeof e})(e)}n.r(t),n.d(t,"errors",(function(){return ct})),n.d(t,"load",(function(){return ft})),n.d(t,"loadView",(function(){return lt}));var c=function(){function e(t){if(function(e,t){if(!(e instanceof t))throw new TypeError("Cannot call a class as a function")}(this,e),function(e){return"object"!==u(e)||void 0===e.length||void 0===e.readUInt8||void 0===e.readUInt16LE||void 0===e.readUInt16BE||void 0===e.readUInt32LE||void 0===e.readUInt32BE||void 0===e.readInt32LE||void 0===e.readInt32BE}(t))throw Error("DataView: Passed buffer type is unsupported.");this.buffer=t,this.byteLength=this.buffer.length}var t;return(t=[{key:"getUint8",value:function(e){return this.buffer.readUInt8(e)}},{key:"getUint16",value:function(e,t){return t?this.buffer.readUInt16LE(e):this.buffer.readUInt16BE(e)}},{key:"getUint32",value:function(e,t){return t?this.buffer.readUInt32LE(e):this.buffer.readUInt32BE(e)}},{key:"getInt32",value:function(e,t){return t?this.buffer.readInt32LE(e):this.buffer.readInt32BE(e)}}])&&function(e,t){for(var n=0;n<t.length;n++){var r=t[n];r.enumerable=r.enumerable||0,r.configurable=1,"value"in r&&(r.writable=1),Object.defineProperty(e,r.key,r)}}(e.prototype,t),e}();function f(e){return e.map((function(e){return String.fromCharCode(e)})).join("")}function s(e){if(e.length>=8){var t=f(e.slice(0,8));if("ASCII\0\0\0"===t)return f(e.slice(8));if("JIS\0\0\0\0\0"===t)return"[JIS encoded text]";if("UNICODE\0"===t)return"[Unicode encoded text]";if("\0\0\0\0\0\0\0\0"===t)return"[Undefined encoding]"}return"Undefined"}function d(e){return e[0][0]/e[0][1]+e[1][0]/e[1][1]/60+e[2][0]/e[2][1]/3600}function l(e,t){return 65472===e.getUint16(t)}function p(e,t){return 65474===e.getUint16(t)}function m(e,t){return 65506===e.getUint16(t)&&"ICC_PROFILE\0"===r(e,t+4,12)}function g(e,t){return 65505===e.getUint16(t)&&"Exif"===r(e,t+4,4)&&0===e.getUint8(t+4+4)}function h(e,t){return 65505===e.getUint16(t)&&function(e,t){return"http://ns.adobe.com/xap/1.0/\0"===r(e,t+4,29)}(e,t)}function v(e,t){return 65505===e.getUint16(t)&&function(e,t){return"http://ns.adobe.com/xmp/extension/\0"===r(e,t+4,35)}(e,t)}function y(e,t){return{dataOffset:e+33,length:t-31}}function S(e,t){return{dataOffset:e+79,length:t-77}}function b(e,t){return 65517===e.getUint16(t)&&"Photoshop 3.0"===r(e,t+4,13)&&0===e.getUint8(t+4+13)}function C(e,t){var n=e.getUint16(t);return n>=65504&&n<=65519||65534===n||65472===n||65474===n||65476===n||65499===n||65501===n||65498===n}function A(e,t){return"IHDR"===r(e,t+4,4)}function I(e,t){return"iTXt"===r(e,t+4,4)&&"XML:com.adobe.xmp\0"===r(e,t+8,18)}function P(e,t){t+=28;for(var n=0;n<2&&t<e.byteLength;)0===e.getUint8(t)&&n++,t++;if(!(n<2))return t}function U(e,t){var n=e.getUint32(t);return function(e){return 0===e}(n)?e.byteLength-t:function(e){return 1===e}(n)&&function(e,t){return 0===e.getUint32(t+8)}(e,t)?e.getUint32(t+12):n}var w=function(e){if(function(e){return e.byteLength>=4&&function(e){var t=18761===e.getUint16(0);return 42===e.getUint16(2,t)}(e)}(e))return{hasAppMarkers:1,tiffHeaderOffset:0};if(function(e){return e.byteLength>=2&&65496===e.getUint16(0)}(e))return function(e){for(var t,n,r,i,o,a,u,c=2;c+4+5<=e.byteLength;){if(l(e,c))n=c+2;else if(p(e,c))r=c+2;else if(g(e,c))t=e.getUint16(c+2),i=c+10;else if(h(e,c))a||(a=[]),t=e.getUint16(c+2),a.push(y(c,t));else if(v(e,c))a||(a=[]),t=e.getUint16(c+2),a.push(S(c,t));else if(b(e,c))t=e.getUint16(c+2),o=c+18;else if(m(e,c)){var f=c+18,s=(t=e.getUint16(c+2))-16,d=e.getUint8(c+16),A=e.getUint8(c+17);u||(u=[]),u.push({offset:f,length:s,chunkNumber:d,chunksTotal:A})}else{if(!C(e,c))break;t=e.getUint16(c+2)}c+=2+t}return{hasAppMarkers:c>2,fileDataOffset:n||r,tiffHeaderOffset:i,iptcDataOffset:o,xmpChunks:a,iccChunks:u}}(e);if(function(e){return"PNG\r\n\n"===r(e,0,8)}(e))return function(e){for(var t={hasAppMarkers:0},n=8;n+4+4<=e.byteLength;){if(A(e,n))t.hasAppMarkers=1,t.pngHeaderOffset=n+8;else if(I(e,n)){var r=P(e,n);void 0!==r&&(t.hasAppMarkers=1,t.xmpChunks=[{dataOffset:r,length:e.getUint32(n+0)-(r-(n+8))}])}n+=e.getUint32(n+0)+4+4+4}return t}(e);if(function(e){var t=r(e,8,4);return"ftyp"===r(e,4,4)&&-1!==["heic","heix","hevc","hevx","heim","heis","hevm","hevs","mif1"].indexOf(t)}(e))return function(e){var t=function(e){for(var t=0;t+4+4<=e.byteLength;){var n=U(e,t);if(n>=8&&"meta"===r(e,t+4,4))return{offset:t,length:n};t+=n}return{offset:void 0,length:0}}(e),n=t.offset,i=t.length;if(void 0===n)return{hasAppMarkers:0};var o=Math.min(n+i,e.byteLength),a=function(e,t,n){for(var i={ilocOffset:void 0,exifItemOffset:void 0,colrOffset:void 0};t+4<=n&&(!i.ilocOffset||!i.exifItemOffset||!i.colrOffset);){var o=r(e,t,4);"iloc"===o?i.ilocOffset=t:"Exif"===o?i.exifItemOffset=t+-4:"colr"===o&&(i.colrOffset=t+-4),t++}return i}(e,n,o),u=a.exifItemOffset,c=a.ilocOffset,f=a.colrOffset,s=function(e,t,n,r){if(n&&t&&!(t+2>r)){var i=e.getUint16(t);for(n+=12;n+16<=r;){if(e.getUint16(n)===i){var o=e.getUint32(n+8);if(o+4<=e.byteLength)return o+(e.getUint32(o)+4)}n+=16}}}(e,u,c,o),d=function(e,t,n){if(t&&!(t+12>n)){var i=r(e,t+8,4);if("prof"===i||"rICC"===i)return[{offset:t+12,length:U(e,t)-12,chunkNumber:1,chunksTotal:1}]}}(e,f,o);return{hasAppMarkers:void 0!==s||void 0!==d,tiffHeaderOffset:s,iccChunks:d}}(e);if(function(e){return"RIFF"===r(e,0,4)&&"WEBP"===r(e,8,4)}(e))return function(e){for(var t,n,i,o=12,a=0;o+8<e.byteLength;){var u=r(e,o,4),c=e.getUint32(o+4,1);"EXIF"===u?(a=1,t="Exif\0\0"===r(e,o+8,6)?o+8+6:o+8):"XMP "===u?(a=1,n=[{dataOffset:o+8,length:c}]):"ICCP"===u&&(a=1,i=[{offset:o+8,length:c,chunkNumber:1,chunksTotal:1}]),o+=8+(c%2==0?c:c+1)}return{hasAppMarkers:a,tiffHeaderOffset:t,xmpChunks:n,iccChunks:i}}(e);throw Error("Invalid image format")},D={1:1,2:1,3:2,4:4,5:8,7:1,9:4,10:8,13:4},O={BYTE:1,ASCII:2,SHORT:3,LONG:4,RATIONAL:5,UNDEFINED:7,SLONG:9,SRATIONAL:10,IFD:13},T={getAsciiValue:function(e){return e.map((function(e){return String.fromCharCode(e)}))},getByteAt:x,getAsciiAt:function(e,t){return e.getUint8(t)},getShortAt:function(e,t,n){return e.getUint16(t,18761===n)},getLongAt:k,getRationalAt:function(e,t,n){return[k(e,t,n),k(e,t+4,n)]},getUndefinedAt:function(e,t){return x(e,t)},getSlongAt:M,getSrationalAt:function(e,t,n){return[M(e,t,n),M(e,t+4,n)]},getIfdPointerAt:function(e,t,n){return k(e,t,n)},typeSizes:D,tagTypes:O,getTypeSize:function(e){if(void 0===O[e])throw Error("No such type found.");return D[O[e]]}};function x(e,t){return e.getUint8(t)}function k(e,t,n){return e.getUint32(t,18761===n)}function M(e,t,n){return e.getInt32(t,18761===n)}var L={LightSource:function(e){return 1===e?"Daylight":2===e?"Fluorescent":3===e?"Tungsten (incandescent light)":4===e?"Flash":9===e?"Fine weather":10===e?"Cloudy weather":11===e?"Shade":12===e?"Daylight fluorescent (D 5700 – 7100K)":13===e?"Day white fluorescent (N 4600 – 5400K)":14===e?"Cool white fluorescent (W 3900 – 4500K)":15===e?"White fluorescent (WW 3200 – 3700K)":17===e?"Standard light A":18===e?"Standard light B":19===e?"Standard light C":20===e?"D55":21===e?"D65":22===e?"D75":23===e?"D50":24===e?"ISO studio tungsten":255===e?"Other light source":"Unknown"}};function F(e,t){(null==t||t>e.length)&&(t=e.length);for(var n=0,r=Array(t);n<t;n++)r[n]=e[n];return r}function R(e,t){(null==t||t>e.length)&&(t=e.length);for(var n=0,r=Array(t);n<t;n++)r[n]=e[n];return r}var N={0:{name:"GPSVersionID",description:function(e){return 2===e[0]&&2===e[1]&&0===e[2]&&0===e[3]?"Version 2.2":"Unknown"}},1:{name:"GPSLatitudeRef",description:function(e){var t=e.join("");return"N"===t?"North latitude":"S"===t?"South latitude":"Unknown"}},2:{name:"GPSLatitude",description:d},3:{name:"GPSLongitudeRef",description:function(e){var t=e.join("");return"E"===t?"East longitude":"W"===t?"West longitude":"Unknown"}},4:{name:"GPSLongitude",description:d},5:{name:"GPSAltitudeRef",description:function(e){return 0===e?"Sea level":1===e?"Sea level reference (negative value)":"Unknown"}},6:{name:"GPSAltitude",description:function(e){return e[0]/e[1]+" m"}},7:{name:"GPSTimeStamp",description:function(e){return e.map((function(e){var t,n=(2,function(e){if(Array.isArray(e))return e}(t=e)||function(e,t){if("undefined"!=typeof Symbol&&Symbol.iterator in Object(e)){var n=[],r=1,i=0,o=void 0;try{for(var a,u=e[Symbol.iterator]();!(r=(a=u.next()).done)&&(n.push(a.value),2!==n.length);r=1);}catch(e){i=1,o=e}finally{try{r||null==u.return||u.return()}finally{if(i)throw o}}return n}}(t)||function(e,t){if(e){if("string"==typeof e)return R(e,2);var n=Object.prototype.toString.call(e).slice(8,-1);return"Object"===n&&e.constructor&&(n=e.constructor.name),"Map"===n||"Set"===n?Array.from(n):"Arguments"===n||/^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)?R(e,2):void 0}}(t)||function(){throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.")}()),r=n[0]/n[1];return/^\d(\.|$)/.test("".concat(r))?"0".concat(r):r})).join(":")}},8:"GPSSatellites",9:{name:"GPSStatus",description:function(e){var t=e.join("");return"A"===t?"Measurement in progress":"V"===t?"Measurement Interoperability":"Unknown"}},10:{name:"GPSMeasureMode",description:function(e){var t=e.join("");return"2"===t?"2-dimensional measurement":"3"===t?"3-dimensional measurement":"Unknown"}},11:"GPSDOP",12:{name:"GPSSpeedRef",description:function(e){var t=e.join("");return"K"===t?"Kilometers per hour":"M"===t?"Miles per hour":"N"===t?"Knots":"Unknown"}},13:"GPSSpeed",14:{name:"GPSTrackRef",description:function(e){var t=e.join("");return"T"===t?"True direction":"M"===t?"Magnetic direction":"Unknown"}},15:"GPSTrack",16:{name:"GPSImgDirectionRef",description:function(e){var t=e.join("");return"T"===t?"True direction":"M"===t?"Magnetic direction":"Unknown"}},17:"GPSImgDirection",18:"GPSMapDatum",19:{name:"GPSDestLatitudeRef",description:function(e){var t=e.join("");return"N"===t?"North latitude":"S"===t?"South latitude":"Unknown"}},20:{name:"GPSDestLatitude",description:function(e){return e[0][0]/e[0][1]+e[1][0]/e[1][1]/60+e[2][0]/e[2][1]/3600}},21:{name:"GPSDestLongitudeRef",description:function(e){var t=e.join("");return"E"===t?"East longitude":"W"===t?"West longitude":"Unknown"}},22:{name:"GPSDestLongitude",description:function(e){return e[0][0]/e[0][1]+e[1][0]/e[1][1]/60+e[2][0]/e[2][1]/3600}},23:{name:"GPSDestBearingRef",description:function(e){var t=e.join("");return"T"===t?"True direction":"M"===t?"Magnetic direction":"Unknown"}},24:"GPSDestBearing",25:{name:"GPSDestDistanceRef",description:function(e){var t=e.join("");return"K"===t?"Kilometers":"M"===t?"Miles":"N"===t?"Knots":"Unknown"}},26:"GPSDestDistance",27:{name:"GPSProcessingMethod",description:s},28:{name:"GPSAreaInformation",description:s},29:"GPSDateStamp",30:{name:"GPSDifferential",description:function(e){return 0===e?"Measurement without differential correction":1===e?"Differential correction applied":"Unknown"}},31:"GPSHPositioningError"},E={1:"InteroperabilityIndex",2:{name:"InteroperabilityVersion",description:function(e){return f(e)}},4096:"RelatedImageFileFormat",4097:"RelatedImageWidth",4098:"RelatedImageHeight"},G=a({},{11:"ProcessingSoftware",254:{name:"SubfileType",description:function(e){return{0:"Full-resolution image",1:"Reduced-resolution image",2:"Single page of multi-page image",3:"Single page of multi-page reduced-resolution image",4:"Transparency mask",5:"Transparency mask of reduced-resolution image",6:"Transparency mask of multi-page image",7:"Transparency mask of reduced-resolution multi-page image",65537:"Alternate reduced-resolution image",4294967295:"Invalid"}[e]||"Unknown"}},255:{name:"OldSubfileType",description:function(e){return{0:"Full-resolution image",1:"Reduced-resolution image",2:"Single page of multi-page image"}[e]||"Unknown"}},256:"ImageWidth",257:"ImageLength",258:"BitsPerSample",259:"Compression",262:"PhotometricInterpretation",263:{name:"Thresholding",description:function(e){return{1:"No dithering or halftoning",2:"Ordered dither or halfton",3:"Randomized dither"}[e]||"Unknown"}},264:"CellWidth",265:"CellLength",266:{name:"FillOrder",description:function(e){return{1:"Normal",2:"Reversed"}[e]||"Unknown"}},269:"DocumentName",270:"ImageDescription",271:"Make",272:"Model",273:"StripOffsets",274:{name:"Orientation",description:function(e){return 1===e?"top-left":2===e?"top-right":3===e?"bottom-right":4===e?"bottom-left":5===e?"left-top":6===e?"right-top":7===e?"right-bottom":8===e?"left-bottom":"Undefined"}},277:"SamplesPerPixel",278:"RowsPerStrip",279:"StripByteCounts",280:"MinSampleValue",281:"MaxSampleValue",282:{name:"XResolution",description:function(e){return""+Math.round(e[0]/e[1])}},283:{name:"YResolution",description:function(e){return""+Math.round(e[0]/e[1])}},284:"PlanarConfiguration",285:"PageName",286:{name:"XPosition",description:function(e){return""+Math.round(e[0]/e[1])}},287:{name:"YPosition",description:function(e){return""+Math.round(e[0]/e[1])}},290:{name:"GrayResponseUnit",description:function(e){return{1:"0.1",2:"0.001",3:"0.0001",4:"1e-05",5:"1e-06"}[e]||"Unknown"}},296:{name:"ResolutionUnit",description:function(e){return 2===e?"inches":3===e?"centimeters":"Unknown"}},297:"PageNumber",301:"TransferFunction",305:"Software",306:"DateTime",315:"Artist",316:"HostComputer",317:"Predictor",318:{name:"WhitePoint",description:function(e){return e.map((function(e){return"".concat(e[0],"/").concat(e[1])})).join(", ")}},319:{name:"PrimaryChromaticities",description:function(e){return e.map((function(e){return"".concat(e[0],"/").concat(e[1])})).join(", ")}},321:"HalftoneHints",322:"TileWidth",323:"TileLength",330:"A100DataOffset",332:{name:"InkSet",description:function(e){return{1:"CMYK",2:"Not CMYK"}[e]||"Unknown"}},337:"TargetPrinter",338:{name:"ExtraSamples",description:function(e){return{0:"Unspecified",1:"Associated Alpha",2:"Unassociated Alpha"}[e]||"Unknown"}},339:{name:"SampleFormat",description:function(e){var t={1:"Unsigned",2:"Signed",3:"Float",4:"Undefined",5:"Complex int",6:"Complex float"};return Array.isArray(e)?e.map((function(e){return t[e]||"Unknown"})).join(", "):"Unknown"}},513:"JPEGInterchangeFormat",514:"JPEGInterchangeFormatLength",529:{name:"YCbCrCoefficients",description:function(e){return e.map((function(e){return""+e[0]/e[1]})).join("/")}},530:"YCbCrSubSampling",531:{name:"YCbCrPositioning",description:function(e){return 1===e?"centered":2===e?"co-sited":"undefined "+e}},532:{name:"ReferenceBlackWhite",description:function(e){return e.map((function(e){return""+e[0]/e[1]})).join(", ")}},700:"ApplicationNotes",18246:"Rating",18249:"RatingPercent",33432:{name:"Copyright",description:function(e){return e.join("; ")}},33550:"PixelScale",33723:"IPTC-NAA",33920:"IntergraphMatrix",33922:"ModelTiePoint",34118:"SEMInfo",34264:"ModelTransform",34377:"PhotoshopSettings",34665:"Exif IFD Pointer",34675:"ICC_Profile",34735:"GeoTiffDirectory",34736:"GeoTiffDoubleParams",34737:"GeoTiffAsciiParams",34853:"GPS Info IFD Pointer",40091:"XPTitle",40092:"XPComment",40093:"XPAuthor",40094:"XPKeywords",40095:"XPSubject",42112:"GDALMetadata",42113:"GDALNoData",50341:"PrintIM",50707:"DNGBackwardVersion",50708:"UniqueCameraModel",50709:"LocalizedCameraModel",50721:"ColorMatrix1",50722:"ColorMatrix2",50723:"CameraCalibration1",50724:"CameraCalibration2",50725:"ReductionMatrix1",50726:"ReductionMatrix2",50727:"AnalogBalance",50728:"AsShotNeutral",50729:"AsShotWhiteXY",50730:"BaselineExposure",50731:"BaselineNoise",50732:"BaselineSharpness",50734:"LinearResponseLimit",50735:"CameraSerialNumber",50736:"DNGLensInfo",50739:"ShadowScale",50741:{name:"MakerNoteSafety",description:function(e){return{0:"Unsafe",1:"Safe"}[e]||"Unknown"}},50778:{name:"CalibrationIlluminant1",description:L.LightSource},50779:{name:"CalibrationIlluminant2",description:L.LightSource},50781:"RawDataUniqueID",50827:"OriginalRawFileName",50828:"OriginalRawFileData",50831:"AsShotICCProfile",50832:"AsShotPreProfileMatrix",50833:"CurrentICCProfile",50834:"CurrentPreProfileMatrix",50879:"ColorimetricReference",50885:"SRawType",50898:"PanasonicTitle",50899:"PanasonicTitle2",50931:"CameraCalibrationSig",50932:"ProfileCalibrationSig",50933:"ProfileIFD",50934:"AsShotProfileName",50936:"ProfileName",50937:"ProfileHueSatMapDims",50938:"ProfileHueSatMapData1",50939:"ProfileHueSatMapData2",50940:"ProfileToneCurve",50941:{name:"ProfileEmbedPolicy",description:function(e){return{0:"Allow Copying",1:"Embed if Used",2:"Never Embed",3:"No Restrictions"}[e]||"Unknown"}},50942:"ProfileCopyright",50964:"ForwardMatrix1",50965:"ForwardMatrix2",50966:"PreviewApplicationName",50967:"PreviewApplicationVersion",50968:"PreviewSettingsName",50969:"PreviewSettingsDigest",50970:{name:"PreviewColorSpace",description:function(e){return{1:"Gray Gamma 2.2",2:"sRGB",3:"Adobe RGB",4:"ProPhoto RGB"}[e]||"Unknown"}},50971:"PreviewDateTime",50972:"RawImageDigest",50973:"OriginalRawFileDigest",50981:"ProfileLookTableDims",50982:"ProfileLookTableData",51043:"TimeCodes",51044:"FrameRate",51058:"TStop",51081:"ReelName",51089:"OriginalDefaultFinalSize",51090:"OriginalBestQualitySize",51091:"OriginalDefaultCropSize",51105:"CameraLabel",51107:{name:"ProfileHueSatMapEncoding",description:function(e){return{0:"Linear",1:"sRGB"}[e]||"Unknown"}},51108:{name:"ProfileLookTableEncoding",description:function(e){return{0:"Linear",1:"sRGB"}[e]||"Unknown"}},51109:"BaselineExposureOffset",51110:{name:"DefaultBlackRender",description:function(e){return{0:"Auto",1:"None"}[e]||"Unknown"}},51111:"NewRawImageDigest",51112:"RawToPreviewGain"},{33434:{name:"ExposureTime",description:function(e){return 0!==e[0]?"1/".concat(Math.round(e[1]/e[0])):"0/".concat(e[1])}},33437:{name:"FNumber",description:function(e){return"f/".concat(e[0]/e[1])}},34850:{name:"ExposureProgram",description:function(e){return 0===e?"Undefined":1===e?"Manual":2===e?"Normal program":3===e?"Aperture priority":4===e?"Shutter priority":5===e?"Creative program":6===e?"Action program":7===e?"Portrait mode":8===e?"Landscape mode":9===e?"Bulb":"Unknown"}},34852:"SpectralSensitivity",34855:"ISOSpeedRatings",34856:{name:"OECF",description:function(){return"[Raw OECF table data]"}},34858:"TimeZoneOffset",34859:"SelfTimerMode",34864:{name:"SensitivityType",description:function(e){return{1:"Standard Output Sensitivity",2:"Recommended Exposure Index",3:"ISO Speed",4:"Standard Output Sensitivity and Recommended Exposure Index",5:"Standard Output Sensitivity and ISO Speed",6:"Recommended Exposure Index and ISO Speed",7:"Standard Output Sensitivity, Recommended Exposure Index and ISO Speed"}[e]||"Unknown"}},34865:"StandardOutputSensitivity",34866:"RecommendedExposureIndex",34867:"ISOSpeed",34868:"ISOSpeedLatitudeyyy",34869:"ISOSpeedLatitudezzz",36864:{name:"ExifVersion",description:function(e){return f(e)}},36867:"DateTimeOriginal",36868:"DateTimeDigitized",36873:"GooglePlusUploadCode",36880:"OffsetTime",36881:"OffsetTimeOriginal",36882:"OffsetTimeDigitized",37121:{name:"ComponentsConfiguration",description:function(e){return e.map((function(e){return 49===e?"Y":50===e?"Cb":51===e?"Cr":52===e?"R":53===e?"G":54===e?"B":void 0})).join("")}},37122:"CompressedBitsPerPixel",37377:{name:"ShutterSpeedValue",description:function(e){return"1/".concat(Math.round(Math.pow(2,e[0]/e[1])))}},37378:{name:"ApertureValue",description:function(e){return Math.pow(Math.sqrt(2),e[0]/e[1]).toFixed(2)}},37379:"BrightnessValue",37380:"ExposureBiasValue",37381:{name:"MaxApertureValue",description:function(e){return Math.pow(Math.sqrt(2),e[0]/e[1]).toFixed(2)}},37382:{name:"SubjectDistance",description:function(e){return e[0]/e[1]+" m"}},37383:{name:"MeteringMode",description:function(e){return 1===e?"Average":2===e?"CenterWeightedAverage":3===e?"Spot":4===e?"MultiSpot":5===e?"Pattern":6===e?"Partial":255===e?"Other":"Unknown"}},37384:{name:"LightSource",description:L.LightSource},37385:{name:"Flash",description:function(e){return 0===e?"Flash did not fire":1===e?"Flash fired":5===e?"Strobe return light not detected":7===e?"Strobe return light detected":9===e?"Flash fired, compulsory flash mode":13===e?"Flash fired, compulsory flash mode, return light not detected":15===e?"Flash fired, compulsory flash mode, return light detected":16===e?"Flash did not fire, compulsory flash mode":24===e?"Flash did not fire, auto mode":25===e?"Flash fired, auto mode":29===e?"Flash fired, auto mode, return light not detected":31===e?"Flash fired, auto mode, return light detected":32===e?"No flash function":65===e?"Flash fired, red-eye reduction mode":69===e?"Flash fired, red-eye reduction mode, return light not detected":71===e?"Flash fired, red-eye reduction mode, return light detected":73===e?"Flash fired, compulsory flash mode, red-eye reduction mode":77===e?"Flash fired, compulsory flash mode, red-eye reduction mode, return light not detected":79===e?"Flash fired, compulsory flash mode, red-eye reduction mode, return light detected":89===e?"Flash fired, auto mode, red-eye reduction mode":93===e?"Flash fired, auto mode, return light not detected, red-eye reduction mode":95===e?"Flash fired, auto mode, return light detected, red-eye reduction mode":"Unknown"}},37386:{name:"FocalLength",description:function(e){return e[0]/e[1]+" mm"}},37393:"ImageNumber",37394:{name:"SecurityClassification",description:function(e){return{C:"Confidential",R:"Restricted",S:"Secret",T:"Top Secret",U:"Unclassified"}[e]||"Unknown"}},37395:"ImageHistory",37396:{name:"SubjectArea",description:function(e){return 2===e.length?"Location; X: ".concat(e[0],", Y: ").concat(e[1]):3===e.length?"Circle; X: ".concat(e[0],", Y: ").concat(e[1],", diameter: ").concat(e[2]):4===e.length?"Rectangle; X: ".concat(e[0],", Y: ").concat(e[1],", width: ").concat(e[2],", height: ").concat(e[3]):"Unknown"}},37500:{name:"MakerNote",description:function(){return"[Raw maker note data]"}},37510:{name:"UserComment",description:s},37520:"SubSecTime",37521:"SubSecTimeOriginal",37522:"SubSecTimeDigitized",37888:{name:"AmbientTemperature",description:function(e){return e[0]/e[1]+" °C"}},37889:{name:"Humidity",description:function(e){return e[0]/e[1]+" %"}},37890:{name:"Pressure",description:function(e){return e[0]/e[1]+" hPa"}},37891:{name:"WaterDepth",description:function(e){return e[0]/e[1]+" m"}},37892:{name:"Acceleration",description:function(e){return e[0]/e[1]+" mGal"}},37893:{name:"CameraElevationAngle",description:function(e){return e[0]/e[1]+" °"}},40960:{name:"FlashpixVersion",description:function(e){return e.map((function(e){return String.fromCharCode(e)})).join("")}},40961:{name:"ColorSpace",description:function(e){return 1===e?"sRGB":65535===e?"Uncalibrated":"Unknown"}},40962:"PixelXDimension",40963:"PixelYDimension",40964:"RelatedSoundFile",40965:"Interoperability IFD Pointer",41483:"FlashEnergy",41484:{name:"SpatialFrequencyResponse",description:function(){return"[Raw SFR table data]"}},41486:"FocalPlaneXResolution",41487:"FocalPlaneYResolution",41488:{name:"FocalPlaneResolutionUnit",description:function(e){return 2===e?"inches":3===e?"centimeters":"Unknown"}},41492:{name:"SubjectLocation",description:function(e){var t,n=(2,function(e){if(Array.isArray(e))return e}(t=e)||function(e,t){if("undefined"!=typeof Symbol&&Symbol.iterator in Object(e)){var n=[],r=1,i=0,o=void 0;try{for(var a,u=e[Symbol.iterator]();!(r=(a=u.next()).done)&&(n.push(a.value),2!==n.length);r=1);}catch(e){i=1,o=e}finally{try{r||null==u.return||u.return()}finally{if(i)throw o}}return n}}(t)||function(e,t){if(e){if("string"==typeof e)return F(e,2);var n=Object.prototype.toString.call(e).slice(8,-1);return"Object"===n&&e.constructor&&(n=e.constructor.name),"Map"===n||"Set"===n?Array.from(n):"Arguments"===n||/^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)?F(e,2):void 0}}(t)||function(){throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.")}()),r=n[0],i=n[1];return"X: ".concat(r,", Y: ").concat(i)}},41493:"ExposureIndex",41495:{name:"SensingMethod",description:function(e){return 1===e?"Undefined":2===e?"One-chip color area sensor":3===e?"Two-chip color area sensor":4===e?"Three-chip color area sensor":5===e?"Color sequential area sensor":7===e?"Trilinear sensor":8===e?"Color sequential linear sensor":"Unknown"}},41728:{name:"FileSource",description:function(e){return 3===e?"DSC":"Unknown"}},41729:{name:"SceneType",description:function(e){return 1===e?"A directly photographed image":"Unknown"}},41730:{name:"CFAPattern",description:function(){return"[Raw CFA pattern table data]"}},41985:{name:"CustomRendered",description:function(e){return 0===e?"Normal process":1===e?"Custom process":"Unknown"}},41986:{name:"ExposureMode",description:function(e){return 0===e?"Auto exposure":1===e?"Manual exposure":2===e?"Auto bracket":"Unknown"}},41987:{name:"WhiteBalance",description:function(e){return 0===e?"Auto white balance":1===e?"Manual white balance":"Unknown"}},41988:{name:"DigitalZoomRatio",description:function(e){return 0===e[0]?"Digital zoom was not used":""+e[0]/e[1]}},41989:{name:"FocalLengthIn35mmFilm",description:function(e){return 0===e?"Unknown":e}},41990:{name:"SceneCaptureType",description:function(e){return 0===e?"Standard":1===e?"Landscape":2===e?"Portrait":3===e?"Night scene":"Unknown"}},41991:{name:"GainControl",description:function(e){return 0===e?"None":1===e?"Low gain up":2===e?"High gain up":3===e?"Low gain down":4===e?"High gain down":"Unknown"}},41992:{name:"Contrast",description:function(e){return 0===e?"Normal":1===e?"Soft":2===e?"Hard":"Unknown"}},41993:{name:"Saturation",description:function(e){return 0===e?"Normal":1===e?"Low saturation":2===e?"High saturation":"Unknown"}},41994:{name:"Sharpness",description:function(e){return 0===e?"Normal":1===e?"Soft":2===e?"Hard":"Unknown"}},41995:{name:"DeviceSettingDescription",description:function(){return"[Raw device settings table data]"}},41996:{name:"SubjectDistanceRange",description:function(e){return 1===e?"Macro":2===e?"Close view":3===e?"Distant view":"Unknown"}},42016:"ImageUniqueID",42032:"CameraOwnerName",42033:"BodySerialNumber",42034:{name:"LensSpecification",description:function(e){var t="".concat(e[0][0]/e[0][1],"-").concat(e[1][0]/e[1][1]," mm");return 0===e[3][1]?"".concat(t," f/?"):"".concat(t," f/").concat(1/(e[2][1]/e[2][1]/(e[3][0]/e[3][1])))}},42035:"LensMake",42036:"LensModel",42037:"LensSerialNumber",42080:{name:"CompositeImage",description:function(e){return{1:"Not a Composite Image",2:"General Composite Image",3:"Composite Image Captured While Shooting"}[e]||"Unknown"}},42081:"SourceImageNumberOfCompositeImage",42082:"SourceExposureTimesOfCompositeImage",42240:"Gamma",59932:"Padding",59933:"OffsetSchema",65e3:"OwnerName",65001:"SerialNumber",65002:"Lens",65100:"RawFile",65101:"Converter",65102:"WhiteBalance",65105:"Exposure",65106:"Shadows",65107:"Brightness",65108:"Contrast",65109:"Saturation",65110:"Sharpness",65111:"Smoothness",65112:"MoireFilter"}),j={"0th":G,exif:G,gps:N,interoperability:E},B={1:T.getByteAt,2:T.getAsciiAt,3:T.getShortAt,4:T.getLongAt,5:T.getRationalAt,7:T.getUndefinedAt,9:T.getSlongAt,10:T.getSrationalAt,13:T.getIfdPointerAt},z=function(e,t){var n=function(e,t){if(18761===e.getUint16(t))return 18761;if(19789===e.getUint16(t))return 19789;throw Error("Illegal byte order value. Faulty image.")}(e,t),r=function(e,t,n){return W(e,"0th",t,function(e,t,n){return t+T.getLongAt(e,t+4,n)}(e,t,n),n)}(e,t,n);return function(e,t,n,r){return void 0!==e["Interoperability IFD Pointer"]?a(e,W(t,"interoperability",n,n+e["Interoperability IFD Pointer"].value,r)):e}(r=function(e,t,n,r){return void 0!==e["GPS Info IFD Pointer"]?a(e,W(t,"gps",n,n+e["GPS Info IFD Pointer"].value,r)):e}(r=function(e,t,n,r){return void 0!==e["Exif IFD Pointer"]?a(e,W(t,"exif",n,n+e["Exif IFD Pointer"].value,r)):e}(r,e,t,n),e,t,n),e,t,n)};function W(e,t,n,r,i){var o=T.getTypeSize("SHORT"),a={},u=function(e,t,n){return t+T.getTypeSize("SHORT")<=e.byteLength?T.getShortAt(e,t,n):0}(e,r,i);r+=o;for(var c=0;c<u&&!(r+12>e.byteLength);c++){var f=V(e,t,n,r,i);void 0!==f&&(a[f.name]={id:f.id,value:f.value,description:f.description}),r+=12}if(r<e.byteLength-T.getTypeSize("LONG")){var s=T.getLongAt(e,r,i);0!==s&&(a.Thumbnail=W(e,t,n,n+s,i))}return a}function V(e,t,n,r,i){var o,a=T.getTypeSize("SHORT"),u=a+T.getTypeSize("SHORT"),c=u+T.getTypeSize("LONG"),f=T.getShortAt(e,r,i),s=T.getShortAt(e,r+a,i),d=T.getLongAt(e,r+u,i);if(void 0!==T.typeSizes[s]){if(function(e,t){return T.typeSizes[e]*t<=T.getTypeSize("LONG")}(s,d))o=H(e,r+c,s,d,i);else{var l=T.getLongAt(e,r+c,i);o=function(e,t,n,r,i){return t+n+T.typeSizes[r]*i<=e.byteLength}(e,n,l,s,d)?H(e,n+l,s,d,i,33723===f):"<faulty value>"}s===T.tagTypes.ASCII&&(o=function(e){try{return e.map((function(e){return decodeURIComponent(escape(e))}))}catch(t){return e}}(o=function(e){for(var t=[],n=0,r=0;r<e.length;r++)"\0"!==e[r]?(void 0===t[n]&&(t[n]=""),t[n]+=e[r]):n++;return t}(o)));var p="undefined-".concat(f),m=o;if(void 0!==j[t][f])if(void 0!==j[t][f].name&&void 0!==j[t][f].description){p=j[t][f].name;try{m=j[t][f].description(o)}catch(e){m=_(o)}}else s===T.tagTypes.RATIONAL||s===T.tagTypes.SRATIONAL?(p=j[t][f],m=""+o[0]/o[1]):(p=j[t][f],m=_(o));return{id:f,name:p,value:o,description:m}}}function H(e,t,n,r,i){var o=arguments.length>5&&void 0!==arguments[5]?arguments[5]:0,a=[];o&&(r*=T.typeSizes[n],n=T.tagTypes.BYTE);for(var u=0;u<r;u++)a.push(B[n](e,t,i)),t+=T.typeSizes[n];return n===T.tagTypes.ASCII?a=T.getAsciiValue(a):1===a.length&&(a=a[0]),a}function _(e){return e instanceof Array?e.join(", "):e}var X=function(e,t){var n=function(e,t){return T.getShortAt(e,t)}(e,t),r=function(e,t,n){if(!(8>n)){var r=T.getByteAt(e,t+7);return{value:r,description:""+r}}}(e,t,n);return{"Bits Per Sample":Y(e,t,n),"Image Height":K(e,t,n),"Image Width":q(e,t,n),"Color Components":r,Subsampling:r&&J(e,t,r.value,n)}};function Y(e,t,n){if(!(3>n)){var r=T.getByteAt(e,t+2);return{value:r,description:""+r}}}function K(e,t,n){if(!(5>n)){var r=T.getShortAt(e,t+3);return{value:r,description:"".concat(r,"px")}}}function q(e,t,n){if(!(7>n)){var r=T.getShortAt(e,t+5);return{value:r,description:"".concat(r,"px")}}}function J(e,t,n,r){if(!(8+3*n>r)){for(var i=[],o=0;o<n;o++){var a=t+8+3*o;i.push([T.getByteAt(e,a),T.getByteAt(e,a+1),T.getByteAt(e,a+2)])}return{value:i,description:i.length>1?$(i)+Q(i):""}}}function $(e){var t={1:"Y",2:"Cb",3:"Cr",4:"I",5:"Q"};return e.map((function(e){return t[e[0]]})).join("")}function Q(e){var t={17:"4:4:4 (1 1)",18:"4:4:0 (1 2)",20:"4:4:1 (1 4)",33:"4:2:2 (2 1)",34:"4:2:0 (2 2)",36:"4:2:1 (2 4)",65:"4:1:1 (4 1)",66:"4:1:0 (4 2)"};return 0===e.length||void 0===e[0][1]||void 0===t[e[0][1]]?"":t[e[0][1]]}var Z={iptc:{256:{name:"Model Version",description:function(e){return""+((e[0]<<8)+e[1])}},261:{name:"Destination",repeatable:1},276:{name:"File Format",description:function(e){return""+((e[0]<<8)+e[1])}},278:{name:"File Format Version",description:function(e){return""+((e[0]<<8)+e[1])}},286:"Service Identifier",296:"Envelope Number",306:"Product ID",316:"Envelope Priority",326:{name:"Date Sent",description:ee},336:{name:"Time Sent",description:te},346:{name:"Coded Character Set",description:ne,encoding_name:ne},356:"UNO",376:{name:"ARM Identifier",description:function(e){return""+((e[0]<<8)+e[1])}},378:{name:"ARM Version",description:function(e){return""+((e[0]<<8)+e[1])}},512:{name:"Record Version",description:function(e){return""+((e[0]<<8)+e[1])}},515:"Object Type Reference",516:"Object Attribute Reference",517:"Object Name",519:"Edit Status",520:{name:"Editorial Update",description:function(e){return"01"===f(e)?"Additional Language":"Unknown"}},522:"Urgency",524:{name:"Subject Reference",repeatable:1,description:function(e){var t=f(e).split(":");return t[2]+(t[3]?"/"+t[3]:"")+(t[4]?"/"+t[4]:"")}},527:"Category",532:{name:"Supplemental Category",repeatable:1},534:"Fixture Identifier",537:{name:"Keywords",repeatable:1},538:{name:"Content Location Code",repeatable:1},539:{name:"Content Location Name",repeatable:1},542:"Release Date",547:"Release Time",549:"Expiration Date",550:"Expiration Time",552:"Special Instructions",554:{name:"Action Advised",description:function(e){var t=f(e);return"01"===t?"Object Kill":"02"===t?"Object Replace":"03"===t?"Object Append":"04"===t?"Object Reference":"Unknown"}},557:{name:"Reference Service",repeatable:1},559:{name:"Reference Date",repeatable:1},562:{name:"Reference Number",repeatable:1},567:{name:"Date Created",description:ee},572:{name:"Time Created",description:te},574:{name:"Digital Creation Date",description:ee},575:{name:"Digital Creation Time",description:te},577:"Originating Program",582:"Program Version",587:{name:"Object Cycle",description:function(e){var t=f(e);return"a"===t?"morning":"p"===t?"evening":"b"===t?"both":"Unknown"}},592:{name:"By-line",repeatable:1},597:{name:"By-line Title",repeatable:1},602:"City",604:"Sub-location",607:"Province/State",612:"Country/Primary Location Code",613:"Country/Primary Location Name",615:"Original Transmission Reference",617:"Headline",622:"Credit",627:"Source",628:"Copyright Notice",630:{name:"Contact",repeatable:1},632:"Caption/Abstract",634:{name:"Writer/Editor",repeatable:1},637:{name:"Rasterized Caption",description:function(e){return e}},642:"Image Type",643:{name:"Image Orientation",description:function(e){var t=f(e);return"P"===t?"Portrait":"L"===t?"Landscape":"S"===t?"Square":"Unknown"}},647:"Language Identifier",662:{name:"Audio Type",description:function(e){var t=f(e),n=t.charAt(0),r=t.charAt(1),i="";return"1"===n?i+="Mono":"2"===n&&(i+="Stereo"),"A"===r?i+=", actuality":"C"===r?i+=", question and answer session":"M"===r?i+=", music, transmitted by itself":"Q"===r?i+=", response to a question":"R"===r?i+=", raw sound":"S"===r?i+=", scener":"V"===r?i+=", voicer":"W"===r&&(i+=", wrap"),""!==i?i:t}},663:{name:"Audio Sampling Rate",description:function(e){return parseInt(f(e),10)+" Hz"}},664:{name:"Audio Sampling Resolution",description:function(e){var t=parseInt(f(e),10);return t+(1===t?" bit":" bits")}},665:{name:"Audio Duration",description:function(e){var t=f(e);return t.length>=6?t.substr(0,2)+":"+t.substr(2,2)+":"+t.substr(4,2):t}},666:"Audio Outcue",698:"Short Document ID",699:"Unique Document ID",700:"Owner ID",712:{name:function(e){return 2===e.length?"ObjectData Preview File Format":"Record 2 destination"},description:function(e){if(2===e.length){var t=(e[0]<<8)+e[1];return 0===t?"No ObjectData":1===t?"IPTC-NAA Digital Newsphoto Parameter Record":2===t?"IPTC7901 Recommended Message Format":3===t?"Tagged Image File Format (Adobe/Aldus Image data)":4===t?"Illustrator (Adobe Graphics data)":5===t?"AppleSingle (Apple Computer Inc)":6===t?"NAA 89-3 (ANPA 1312)":7===t?"MacBinary II":8===t?"IPTC Unstructured Character Oriented File Format (UCOFF)":9===t?"United Press International ANPA 1312 variant":10===t?"United Press International Down-Load Message":11===t?"JPEG File Interchange (JFIF)":12===t?"Photo-CD Image-Pac (Eastman Kodak)":13===t?"Microsoft Bit Mapped Graphics File [*.BMP]":14===t?"Digital Audio File [*.WAV] (Microsoft & Creative Labs)":15===t?"Audio plus Moving Video [*.AVI] (Microsoft)":16===t?"PC DOS/Windows Executable Files [*.COM][*.EXE]":17===t?"Compressed Binary File [*.ZIP] (PKWare Inc)":18===t?"Audio Interchange File Format AIFF (Apple Computer Inc)":19===t?"RIFF Wave (Microsoft Corporation)":20===t?"Freehand (Macromedia/Aldus)":21===t?'Hypertext Markup Language "HTML" (The Internet Society)':22===t?"MPEG 2 Audio Layer 2 (Musicom), ISO/IEC":23===t?"MPEG 2 Audio Layer 3, ISO/IEC":24===t?"Portable Document File (*.PDF) Adobe":25===t?"News Industry Text Format (NITF)":26===t?"Tape Archive (*.TAR)":27===t?"Tidningarnas Telegrambyrå NITF version (TTNITF DTD)":28===t?"Ritzaus Bureau NITF version (RBNITF DTD)":29===t?"Corel Draw [*.CDR]":"Unknown format ".concat(t)}return f(e)}},713:{name:"ObjectData Preview File Format Version",description:function(e,t){var n={"00":{"00":"1"},"01":{"01":"1","02":"2","03":"3","04":"4"},"02":{"04":"4"},"03":{"01":"5.0","02":"6.0"},"04":{"01":"1.40"},"05":{"01":"2"},"06":{"01":"1"},11:{"01":"1.02"},20:{"01":"3.1","02":"4.0","03":"5.0","04":"5.5"},21:{"02":"2.0"}},r=f(e);if(t["ObjectData Preview File Format"]){var i=f(t["ObjectData Preview File Format"].value);if(n[i]&&n[i][r])return n[i][r]}return r}},714:"ObjectData Preview Data",1802:{name:"Size Mode",description:function(e){return e[0].toString()}},1812:{name:"Max Subfile Size",description:function(e){for(var t=0,n=0;n<e.length;n++)t=(t<<8)+e[n];return t.toString()}},1882:{name:"ObjectData Size Announced",description:function(e){for(var t=0,n=0;n<e.length;n++)t=(t<<8)+e[n];return t.toString()}},1887:{name:"Maximum ObjectData Size",description:function(e){for(var t=0,n=0;n<e.length;n++)t=(t<<8)+e[n];return t.toString()}}}};function ee(e){var t=f(e);return t.length>=8?t.substr(0,4)+"-"+t.substr(4,2)+"-"+t.substr(6,2):t}function te(e){var t=f(e),n=t;return t.length>=6&&(n=t.substr(0,2)+":"+t.substr(2,2)+":"+t.substr(4,2),11===t.length&&(n+=t.substr(6,1)+t.substr(7,2)+":"+t.substr(9,2))),n}function ne(e){var t=f(e);return"%G"===t?"UTF-8":"%5"===t?"Windows-1252":"%/G"===t?"UTF-8 Level 1":"%/H"===t?"UTF-8 Level 2":"%/I"===t?"UTF-8 Level 3":"/A"===t?"ISO-8859-1":"/B"===t?"ISO-8859-2":"/C"===t?"ISO-8859-3":"/D"===t?"ISO-8859-4":"/@"===t?"ISO-8859-5":"/G"===t?"ISO-8859-6":"/F"===t?"ISO-8859-7":"/H"===t?"ISO-8859-8":"Unknown"}var re=function(e,t){var n=function(){if("undefined"!=typeof TextDecoder)return TextDecoder}();if("undefined"!=typeof n&&void 0!==e)try{return new n(e).decode(Uint8Array.from(t))}catch(e){}return function(e){try{return decodeURIComponent(escape(e))}catch(t){return e}}(t.map((function(e){return String.fromCharCode(e)})).join(""))},ie=function(e,t){try{if(Array.isArray(e))return ce(new DataView(Uint8Array.from(e).buffer),{size:e.length},0);var n=function(e,t){for(;t+12<=e.byteLength;){var n=oe(e,t);if(ae(n))return{naaBlock:n,dataOffset:t+12};t+=12+n.size+ue(n)}throw Error("No IPTC NAA resource block.")}(e,t);return ce(e,n.naaBlock,n.dataOffset)}catch(e){return{}}};function oe(e,t){if(943868237!==e.getUint32(t,0))throw Error("Not an IPTC resource block.");return{type:e.getUint16(t+4),size:e.getUint16(t+10)}}function ae(e){return 1028===e.type}function ue(e){return e.size%2!=0?1:0}function ce(e,t,n){for(var r={},i=void 0,o=n+t.size;n<o&&n<e.byteLength;){var a=fe(e,n,r,i),u=a.tag,c=a.tagSize;if(null===u)break;"encoding"in u&&(i=u.encoding),void 0===r[u.name]||void 0===u.repeatable?r[u.name]={id:u.id,value:u.value,description:u.description}:(r[u.name]instanceof Array||(r[u.name]=[{id:r[u.name].id,value:r[u.name].value,description:r[u.name].description}]),r[u.name].push({id:u.id,value:u.value,description:u.description})),n+=5+c}return r}function fe(e,t,n,r){if(function(e,t){return 28!==e.getUint8(t)}(e,t))return{tag:null,tagSize:0};var i=e.getUint16(t+1),o=e.getUint16(t+3),a=function(e,t,n){for(var r=[],i=0;i<n;i++)r.push(e.getUint8(t+i));return r}(e,t+5,o),u={id:i,name:se(Z.iptc[i],i,a),value:a,description:de(Z.iptc[i],a,n,r)};return function(e){return Z.iptc[e]&&Z.iptc[e].repeatable}(i)&&(u.repeatable=1),function(e){return Z.iptc[e]&&void 0!==Z.iptc[e].encoding_name}(i)&&(u.encoding=Z.iptc[i].encoding_name(a)),{tag:u,tagSize:o}}function se(e,t,n){return e?function(e){return"string"==typeof e}(e)?e:function(e){return"function"==typeof e.name}(e)?e.name(n):e.name:"undefined-".concat(t)}function de(e,t,n,r){if(function(e){return e&&void 0!==e.description}(e))try{return e.description(t,n)}catch(e){}return function(e,t){return e&&t instanceof Array}(e,t)?re(r,t):t}function le(e,t){(null==t||t>e.length)&&(t=e.length);for(var n=0,r=Array(t);n<t;n++)r[n]=e[n];return r}var pe={"tiff:Orientation":function(e){return"1"===e?"Horizontal (normal)":"2"===e?"Mirror horizontal":"3"===e?"Rotate 180":"4"===e?"Mirror vertical":"5"===e?"Mirror horizontal and rotate 270 CW":"6"===e?"Rotate 90 CW":"7"===e?"Mirror horizontal and rotate 90 CW":"8"===e?"Rotate 270 CW":e},"exif:GPSLatitude":me,"exif:GPSLongitude":me};function me(e){var t,n=(2,function(e){if(Array.isArray(e))return e}(t=e.split(","))||function(e,t){if("undefined"!=typeof Symbol&&Symbol.iterator in Object(e)){var n=[],r=1,i=0,o=void 0;try{for(var a,u=e[Symbol.iterator]();!(r=(a=u.next()).done)&&(n.push(a.value),2!==n.length);r=1);}catch(e){i=1,o=e}finally{try{r||null==u.return||u.return()}finally{if(i)throw o}}return n}}(t)||function(e,t){if(e){if("string"==typeof e)return le(e,2);var n=Object.prototype.toString.call(e).slice(8,-1);return"Object"===n&&e.constructor&&(n=e.constructor.name),"Map"===n||"Set"===n?Array.from(n):"Arguments"===n||/^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)?le(e,2):void 0}}(t)||function(){throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.")}()),r=n[0],i=n[1];if(void 0!==r&&void 0!==i){var o=parseFloat(r),a=parseFloat(i),u=i.charAt(i.length-1);if(!Number.isNaN(o)&&!Number.isNaN(a))return""+(o+a/60)+u}return e}var ge=n(0);function he(e){return(he="function"==typeof Symbol&&"symbol"==typeof Symbol.iterator?function(e){return typeof e}:function(e){return e&&"function"==typeof Symbol&&e.constructor===Symbol&&e!==Symbol.prototype?"symbol":typeof e})(e)}var ve=function(e,t){return"string"==typeof e?Se({},e):function(e,t){if(0===t.length)return[];var n=[ye(e,t.slice(0,1))];return t.length>1&&n.push(ye(e,t.slice(1))),n}(e,t).reduce(Se,{})};function ye(e,t){for(var n=t.reduce((function(e,t){return e+t.length}),0),r=new Uint8Array(n),i=0,o=0;o<t.length;o++){var a=t[o],u=e.buffer.slice(a.dataOffset,a.dataOffset+a.length);r.set(new Uint8Array(u),i),i+=a.length}return new DataView(r.buffer)}function Se(e,t){try{return a(e,we(be(function e(t){for(var n=0;n<t.childNodes.length;n++){if("x:xmpmeta"===t.childNodes[n].tagName)return e(t.childNodes[n]);if("rdf:RDF"===t.childNodes[n].tagName)return t.childNodes[n]}throw Error()}(function(e){var t=ge.a.get();if(!t)throw console.warn("Warning: DOMParser is not available. It is needed to be able to parse XMP tags."),Error();var n=new t,i="string"==typeof e?e:r(e,0,e.byteLength),o=n.parseFromString(i.replace(/^.+(<\?xpacket begin)/,"$1").replace(/(<\?xpacket end=".*"\?>).+$/,"$1"),"application/xml");if("parsererror"===o.documentElement.nodeName)throw Error(o.documentElement.textContent);return o}(t)),1)))}catch(t){return e}}function be(e){var t=arguments.length>1&&void 0!==arguments[1]?arguments[1]:0,n=Ce(e);return Ae(n)?t?{}:Ie(n[0]):Pe(n)}function Ce(e){for(var t=[],n=0;n<e.childNodes.length;n++)t.push(e.childNodes[n]);return t}function Ae(e){return 1===e.length&&"#text"===e[0].nodeName}function Ie(e){return e.nodeValue}function Pe(e){var t={};return e.forEach((function(e){if(function(e){return e.nodeName&&"#text"!==e.nodeName}(e)){var n=function(e){return{attributes:Ue(e),value:be(e)}}(e);void 0!==t[e.nodeName]?(Array.isArray(t[e.nodeName])||(t[e.nodeName]=[t[e.nodeName]]),t[e.nodeName].push(n)):t[e.nodeName]=n}})),t}function Ue(e){for(var t={},n=0;n<e.attributes.length;n++)t[e.attributes[n].nodeName]=decodeURIComponent(escape(e.attributes[n].value));return t}function we(e){var t={};if("string"==typeof e)return e;for(var n in e){var r=e[n];Array.isArray(r)||(r=[r]),r.forEach((function(e){a(t,De(e.attributes)),"object"===he(e.value)&&a(t,Re(e.value))}))}return t}function De(e){var t={};for(var n in e)Oe(n)&&(t[xe(n)]={value:e[n],attributes:{},description:ke(e[n],n)});return t}function Oe(e){return"rdf:parseType"!==e&&!Te(e)}function Te(e){return"xmlns"===e.split(":")[0]}function xe(e){return e.split(":")[1]}function ke(e){var t=arguments.length>1&&void 0!==arguments[1]?arguments[1]:void 0;if(Array.isArray(e))return Me(e);if("object"===he(e))return Le(e);try{return t&&"function"==typeof pe[t]?pe[t](e):decodeURIComponent(escape(e))}catch(t){return e}}function Me(e){return e.map((function(e){return void 0!==e.value?ke(e.value):ke(e)})).join(", ")}function Le(e){var t=[];for(var n in e)t.push("".concat(Fe(n),": ").concat(e[n].value));return t.join("; ")}function Fe(e){return"CiAdrCity"===e?"CreatorCity":"CiAdrCtry"===e?"CreatorCountry":"CiAdrExtadr"===e?"CreatorAddress":"CiAdrPcode"===e?"CreatorPostalCode":"CiAdrRegion"===e?"CreatorRegion":"CiEmailWork"===e?"CreatorWorkEmail":"CiTelWork"===e?"CreatorWorkPhone":"CiUrlWork"===e?"CreatorWorkUrl":e}function Re(e){var t={};for(var n in e)Te(n)||(t[xe(n)]=Ne(e[n],n));return t}function Ne(e,t){return Ee(e)?Ge(e,t):function(e){return"Resource"===e.attributes["rdf:parseType"]||void 0!==e.value["rdf:Description"]&&void 0===e.value["rdf:Description"].value["rdf:value"]}(e)?function(e,t){var n={value:{},attributes:{}};return void 0!==e.value["rdf:Description"]&&(a(n.value,De(e.value["rdf:Description"].attributes)),a(n.attributes,je(e)),e=e.value["rdf:Description"]),a(n.value,Re(e.value)),n.description=ke(n.value,t),n}(e,t):function(e){return 0===Object.keys(e.value).length&&void 0===e.attributes["rdf:resource"]}(e)?function(e,t){var n=De(e.attributes);return{value:n,attributes:{},description:ke(n,t)}}(e,t):function(e){return void 0!==Be(e.value)}(e)?function(e,t){var n=Be(e.value).value["rdf:li"],r=je(e),i=[];return void 0===n?n=[]:Array.isArray(n)||(n=[n]),n.forEach((function(e){i.push(function(e){return Ee(e)?Ge(e):function(e){return"Resource"===e.attributes["rdf:parseType"]}(e)?Re(e.value):{value:e.value,attributes:je(e),description:ke(e.value)}}(e))})),{value:i,attributes:r,description:ke(i,t)}}(e,t):function(e,t){var n=ze(e)||we(e.value);return{value:n,attributes:je(e),description:ke(n,t)}}(e,t)}function Ee(e){return"Resource"===e.attributes["rdf:parseType"]&&void 0!==e.value["rdf:value"]||void 0!==e.value["rdf:Description"]&&void 0!==e.value["rdf:Description"].value["rdf:value"]}function Ge(e,t){var n=je(e);void 0!==e.value["rdf:Description"]&&(e=e.value["rdf:Description"]),a(n,je(e),function(e){var t={};for(var n in e.value)"rdf:value"===n||Te(n)||(t[xe(n)]=e.value[n].value);return t}(e));var r=function(e){return ze(e.value["rdf:value"])||e.value["rdf:value"].value}(e);return{value:r,attributes:n,description:ke(r,t)}}function je(e){var t={};for(var n in e.attributes)"rdf:parseType"===n||"rdf:resource"===n||Te(n)||(t[xe(n)]=e.attributes[n]);return t}function Be(e){return e["rdf:Bag"]||e["rdf:Seq"]||e["rdf:Alt"]}function ze(e){return e.attributes&&e.attributes["rdf:resource"]}var We={desc:{name:"ICC Description"},cprt:{name:"ICC Copyright"},dmdd:{name:"ICC Device Model Description"},vued:{name:"ICC Viewing Conditions Description"},dmnd:{name:"ICC Device Manufacturer for Display"},tech:{name:"Technology"}},Ve={4:{name:"Preferred CMM type",value:function(e,t){return r(e,t,4)},description:function(e){return null!==e?He(e):""}},8:{name:"Profile Version",value:function(e,t){return e.getUint8(t).toString(10)+"."+(e.getUint8(t+1)>>4).toString(10)+"."+(e.getUint8(t+1)%16).toString(10)}},12:{name:"Profile/Device class",value:function(e,t){return r(e,t,4)},description:function(e){switch(e.toLowerCase()){case"scnr":return"Input Device profile";case"mntr":return"Display Device profile";case"prtr":return"Output Device profile";case"link":return"DeviceLink profile";case"abst":return"Abstract profile";case"spac":return"ColorSpace profile";case"nmcl":return"NamedColor profile";case"cenc":return"ColorEncodingSpace profile";case"mid ":return"MultiplexIdentification profile";case"mlnk":return"MultiplexLink profile";case"mvis":return"MultiplexVisualization profile";default:return e}}},16:{name:"Color Space",value:function(e,t){return r(e,t,4)}},20:{name:"Connection Space",value:function(e,t){return r(e,t,4)}},24:{name:"ICC Profile Date",value:function(e,t){return function(e,t){var n=e.getUint16(t),r=e.getUint16(t+2)-1,i=e.getUint16(t+4),o=e.getUint16(t+6),a=e.getUint16(t+8),u=e.getUint16(t+10);return new Date(Date.UTC(n,r,i,o,a,u))}(e,t).toISOString()}},36:{name:"ICC Signature",value:function(e,t){return n=e.buffer.slice(t,t+4),String.fromCharCode.apply(null,new Uint8Array(n));var n}},40:{name:"Primary Platform",value:function(e,t){return r(e,t,4)},description:function(e){return He(e)}},48:{name:"Device Manufacturer",value:function(e,t){return r(e,t,4)},description:function(e){return He(e)}},52:{name:"Device Model Number",value:function(e,t){return r(e,t,4)}},64:{name:"Rendering Intent",value:function(e,t){return e.getUint32(t)},description:function(e){switch(e){case 0:return"Perceptual";case 1:return"Relative Colorimetric";case 2:return"Saturation";case 3:return"Absolute Colorimetric";default:return e}}},80:{name:"Profile Creator",value:function(e,t){return r(e,t,4)}}};function He(e){switch(e.toLowerCase()){case"appl":return"Apple";case"adbe":return"Adobe";case"msft":return"Microsoft";case"sunw":return"Sun Microsystems";case"sgi":return"Silicon Graphics";case"tgnt":return"Taligent";default:return e}}var _e=function(e,t){try{for(var n=t.reduce((function(e,t){return e+t.length}),0),o=new Uint8Array(n),a=0,u=function(e){return Array.isArray(e)?new DataView(Uint8Array.from(e).buffer).buffer:e.buffer}(e),c=function(e){var n=t.find((function(t){return t.chunkNumber===e}));if(!n)throw Error("ICC chunk ".concat(e," not found"));var r=u.slice(n.offset,n.offset+n.length),i=new Uint8Array(r);o.set(i,a),a+=i.length},f=1;f<=t.length;f++)c(f);return function(e){var t=e.buffer,n=e.getUint32();if(e.byteLength!==n)throw Error("ICC profile length not matching");if(e.length<84)throw Error("ICC profile too short");for(var o={},a=Object.keys(Ve),u=0;u<a.length;u++){var c=a[u],f=Ve[c],s=f.value(e,parseInt(c,10)),d=s;f.description&&(d=f.description(s)),o[f.name]={value:s,description:d}}if("acsp"!==Ye(t.slice(36,40)))throw Error("ICC profile: missing signature");if(function(e){return e.length<132}(t))return o;for(var l=e.getUint32(128),p=132,m=0;m<l;m++){if(Xe(t,p))return o;var g=r(e,p,4),h=e.getUint32(p+4),v=e.getUint32(p+8);if(h>t.length)return o;var y=r(e,h,4);if("desc"===y){var S=e.getUint32(h+8);if(S>v)return o;Ke(o,g,Ye(t.slice(h+12,h+S+11)))}else if("mluc"===y){for(var b=e.getUint32(h+8),C=e.getUint32(h+12),A=h+16,I=[],P=0;P<b;P++){var U=r(e,A+0,2),w=r(e,A+2,2),D=e.getUint32(A+4),O=e.getUint32(A+8),T=i(e,h+O,D);I.push({languageCode:U,countryCode:w,text:T}),A+=C}if(1===b)Ke(o,g,I[0].text);else{for(var x={},k=0;k<I.length;k++)x["".concat(I[k].languageCode,"-").concat(I[k].countryCode)]=I[k].text;Ke(o,g,x)}}else"text"===y?Ke(o,g,Ye(t.slice(h+8,h+v-7))):"sig "===y&&Ke(o,g,Ye(t.slice(h+8,h+12)));p+=12}return o}(new DataView(o.buffer))}catch(e){return{}}};function Xe(e,t){return e.length<t+12}function Ye(e){return String.fromCharCode.apply(null,new Uint8Array(e))}function Ke(e,t,n){We[t]?e[We[t].name]={value:n,description:n}:e[t]={value:n,description:n}}var qe=function(e,t){return{"Image Width":Je(e,t),"Image Height":$e(e,t),"Bit Depth":Qe(e,t),"Color Type":Ze(e,t),Compression:et(e,t),Filter:tt(e,t),Interlace:nt(e,t)}};function Je(e,t){if(!(t+0+4>e.byteLength)){var n=T.getLongAt(e,t);return{value:n,description:"".concat(n,"px")}}}function $e(e,t){if(!(t+4+4>e.byteLength)){var n=T.getLongAt(e,t+4);return{value:n,description:"".concat(n,"px")}}}function Qe(e,t){if(!(t+8+1>e.byteLength)){var n=T.getByteAt(e,t+8);return{value:n,description:"".concat(n)}}}function Ze(e,t){if(!(t+9+1>e.byteLength)){var n=T.getByteAt(e,t+9);return{value:n,description:{0:"Grayscale",2:"RGB",3:"Palette",4:"Grayscale with Alpha",6:"RGB with Alpha"}[n]||"Unknown"}}}function et(e,t){if(!(t+10+1>e.byteLength)){var n=T.getByteAt(e,t+10);return{value:n,description:0===n?"Deflate/Inflate":"Unknown"}}}function tt(e,t){if(!(t+11+1>e.byteLength)){var n=T.getByteAt(e,t+11);return{value:n,description:0===n?"Adaptive":"Unknown"}}}function nt(e,t){if(!(t+12+1>e.byteLength)){var n=T.getByteAt(e,t+12);return{value:n,description:{0:"Noninterlaced",1:"Adam7 Interlace"}[n]||"Unknown"}}}function rt(e){return(rt="function"==typeof Symbol&&"symbol"==typeof Symbol.iterator?function(e){return typeof e}:function(e){return e&&"function"==typeof Symbol&&e.constructor===Symbol&&e!==Symbol.prototype?"symbol":typeof e})(e)}var it=[6,7,99],ot=function(e,t,n){if((u=t)&&(void 0===u.Compression||it.includes(u.Compression.value))&&u.JPEGInterchangeFormat&&u.JPEGInterchangeFormat.value&&u.JPEGInterchangeFormatLength&&u.JPEGInterchangeFormatLength.value){t.type="image/jpeg";var r=n+t.JPEGInterchangeFormat.value;t.image=e.buffer.slice(r,r+t.JPEGInterchangeFormatLength.value),o=function(){return e=this.image,"undefined"!=typeof btoa?btoa(Array.prototype.reduce.call(new Uint8Array(e),(function(e,t){return e+String.fromCharCode(t)}),"")):"undefined"!=typeof Buffer?void 0!==rt(Buffer.from)?Buffer.from(e).toString("base64"):new Buffer(e).toString("base64"):void 0;var e},a=0,Object.defineProperty(i=t,"base64",{get:function(){return a||(a=1,Object.defineProperty(i,"base64",{configurable:1,enumerable:1,value:o.apply(i),writable:1})),i.base64},configurable:1,enumerable:1})}var i,o,a,u;return t};function at(e){this.name="MetadataMissingError",this.message=e||"No Exif data",this.stack=Error().stack}at.prototype=Error();var ut={MetadataMissingError:at},ct=(t.default={load:ft,loadView:lt,errors:ut},ut);function ft(e){var t=arguments.length>1&&void 0!==arguments[1]?arguments[1]:{expanded:0};return st(e)&&(e=new Uint8Array(e).buffer),lt(dt(e),t)}function st(e){try{return Buffer.isBuffer(e)}catch(e){return 0}}function dt(e){try{return new DataView(e)}catch(t){return new c(e)}}function lt(e){var t=arguments.length>1&&void 0!==arguments[1]?arguments[1]:{expanded:0},n=0,r={},i=w(e),u=i.fileDataOffset,c=i.tiffHeaderOffset,f=i.iptcDataOffset,s=i.xmpChunks,d=i.iccChunks,l=i.pngHeaderOffset;if(pt(u)){n=1;var p=X(e,u);t.expanded?r.file=p:r=a({},r,p)}if(mt(c)){n=1;var m=z(e,c);if(m.Thumbnail&&(r.Thumbnail=m.Thumbnail,delete m.Thumbnail),t.expanded?(r.exif=m,gt(r)):r=a({},r,m),m["IPTC-NAA"]&&!ht(f)){var g=ie(m["IPTC-NAA"].value,0);t.expanded?r.iptc=g:r=a({},r,g)}if(m.ApplicationNotes&&!vt(s)){var h=ve(o(m.ApplicationNotes.value));t.expanded?r.xmp=h:r=a({},r,h)}if(m.ICC_Profile&&!yt(d)){var v=_e(m.ICC_Profile.value,[{offset:0,length:m.ICC_Profile.value.length,chunkNumber:1,chunksTotal:1}]);t.expanded?r.icc=v:r=a({},r,v)}}if(ht(f)){n=1;var y=ie(e,f);t.expanded?r.iptc=y:r=a({},r,y)}if(vt(s)){n=1;var S=ve(e,s);t.expanded?r.xmp=S:r=a({},r,S)}if(yt(d)){n=1;var b=_e(e,d);t.expanded?r.icc=b:r=a({},r,b)}if(St(l)){n=1;var C=qe(e,l);t.expanded?r.pngFile=C:r=a({},r,C)}var A=ot(e,r.Thumbnail,c);if(A?(n=1,r.Thumbnail=A):delete r.Thumbnail,!n)throw new ut.MetadataMissingError;return r}function pt(e){return void 0!==e}function mt(e){return void 0!==e}function gt(e){e.exif&&(e.exif.GPSLatitude&&e.exif.GPSLatitudeRef&&(e.gps=e.gps||{},e.gps.Latitude=d(e.exif.GPSLatitude.value),"S"===e.exif.GPSLatitudeRef.value.join("")&&(e.gps.Latitude=-e.gps.Latitude)),e.exif.GPSLongitude&&e.exif.GPSLongitudeRef&&(e.gps=e.gps||{},e.gps.Longitude=d(e.exif.GPSLongitude.value),"W"===e.exif.GPSLongitudeRef.value.join("")&&(e.gps.Longitude=-e.gps.Longitude)),e.exif.GPSAltitude&&e.exif.GPSAltitudeRef&&(e.gps=e.gps||{},e.gps.Altitude=e.exif.GPSAltitude.value[0]/e.exif.GPSAltitude.value[1],1===e.exif.GPSAltitudeRef.value&&(e.gps.Altitude=-e.gps.Altitude)))}function ht(e){return void 0!==e}function vt(e){return Array.isArray(e)&&e.length>0}function yt(e){return Array.isArray(e)&&e.length>0}function St(e){return void 0!==e}}])}));
-//# sourceMappingURL=exif-reader.js.map
 
 /***/ }),
 
@@ -6012,21 +6447,6 @@ function errname(uv, code) {
 
 /***/ }),
 
-/***/ 430:
-/***/ (function(__unusedmodule, exports) {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", { value: true });
-var ContextEventName;
-(function (ContextEventName) {
-    ContextEventName["Push"] = "push";
-    ContextEventName["PullRequest"] = "pull_request";
-})(ContextEventName = exports.ContextEventName || (exports.ContextEventName = {}));
-
-
-/***/ }),
-
 /***/ 431:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
@@ -8144,70 +8564,6 @@ module.exports = parse;
 
 /***/ }),
 
-/***/ 591:
-/***/ (function(__unusedmodule, exports, __webpack_require__) {
-
-"use strict";
-
-var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
-    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
-    return new (P || (P = Promise))(function (resolve, reject) {
-        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
-        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
-        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
-        step((generator = generator.apply(thisArg, _arguments || [])).next());
-    });
-};
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
-    result["default"] = mod;
-    return result;
-};
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const core = __importStar(__webpack_require__(470));
-const fs = __importStar(__webpack_require__(747));
-const bytes_1 = __importDefault(__webpack_require__(63));
-const exifreader_1 = __importDefault(__webpack_require__(310));
-const fs_xattr_1 = __importDefault(__webpack_require__(243));
-class Image {
-    constructor(filename) {
-        this.filename = filename;
-    }
-    compress() {
-        return __awaiter(this, void 0, void 0, function* () {
-            this.logInfo('Before');
-            // this.source = tinify.fromFile(this.filename)
-            //
-            // return this.source.toFile(this.filename).then(() => {
-            //   this.logInfo('After')
-            // })
-        });
-    }
-    getFilename() {
-        return this.filename;
-    }
-    getSize() {
-        return fs.statSync(this.filename).size;
-    }
-    logInfo(message) {
-        const info = [
-            bytes_1.default.format(this.getSize()),
-            JSON.stringify(exifreader_1.default.load(fs.readFileSync(this.filename)), null, 4),
-            fs_xattr_1.default.getSync(this.filename, 'com.apple.metadata:kMDItemWhereFroms')
-        ];
-        core.debug(`[${this.filename}] ${message}: ${info.join('\n')}`);
-    }
-}
-exports.default = Image;
-
-
-/***/ }),
-
 /***/ 597:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
@@ -8567,11 +8923,229 @@ exports.default = Client;
 
 /***/ }),
 
-/***/ 666:
+/***/ 669:
+/***/ (function(module) {
+
+module.exports = require("util");
+
+/***/ }),
+
+/***/ 672:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
 "use strict";
 
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var _a;
+Object.defineProperty(exports, "__esModule", { value: true });
+const assert_1 = __webpack_require__(357);
+const fs = __webpack_require__(747);
+const path = __webpack_require__(622);
+_a = fs.promises, exports.chmod = _a.chmod, exports.copyFile = _a.copyFile, exports.lstat = _a.lstat, exports.mkdir = _a.mkdir, exports.readdir = _a.readdir, exports.readlink = _a.readlink, exports.rename = _a.rename, exports.rmdir = _a.rmdir, exports.stat = _a.stat, exports.symlink = _a.symlink, exports.unlink = _a.unlink;
+exports.IS_WINDOWS = process.platform === 'win32';
+function exists(fsPath) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            yield exports.stat(fsPath);
+        }
+        catch (err) {
+            if (err.code === 'ENOENT') {
+                return false;
+            }
+            throw err;
+        }
+        return true;
+    });
+}
+exports.exists = exists;
+function isDirectory(fsPath, useStat = false) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const stats = useStat ? yield exports.stat(fsPath) : yield exports.lstat(fsPath);
+        return stats.isDirectory();
+    });
+}
+exports.isDirectory = isDirectory;
+/**
+ * On OSX/Linux, true if path starts with '/'. On Windows, true for paths like:
+ * \, \hello, \\hello\share, C:, and C:\hello (and corresponding alternate separator cases).
+ */
+function isRooted(p) {
+    p = normalizeSeparators(p);
+    if (!p) {
+        throw new Error('isRooted() parameter "p" cannot be empty');
+    }
+    if (exports.IS_WINDOWS) {
+        return (p.startsWith('\\') || /^[A-Z]:/i.test(p) // e.g. \ or \hello or \\hello
+        ); // e.g. C: or C:\hello
+    }
+    return p.startsWith('/');
+}
+exports.isRooted = isRooted;
+/**
+ * Recursively create a directory at `fsPath`.
+ *
+ * This implementation is optimistic, meaning it attempts to create the full
+ * path first, and backs up the path stack from there.
+ *
+ * @param fsPath The path to create
+ * @param maxDepth The maximum recursion depth
+ * @param depth The current recursion depth
+ */
+function mkdirP(fsPath, maxDepth = 1000, depth = 1) {
+    return __awaiter(this, void 0, void 0, function* () {
+        assert_1.ok(fsPath, 'a path argument must be provided');
+        fsPath = path.resolve(fsPath);
+        if (depth >= maxDepth)
+            return exports.mkdir(fsPath);
+        try {
+            yield exports.mkdir(fsPath);
+            return;
+        }
+        catch (err) {
+            switch (err.code) {
+                case 'ENOENT': {
+                    yield mkdirP(path.dirname(fsPath), maxDepth, depth + 1);
+                    yield exports.mkdir(fsPath);
+                    return;
+                }
+                default: {
+                    let stats;
+                    try {
+                        stats = yield exports.stat(fsPath);
+                    }
+                    catch (err2) {
+                        throw err;
+                    }
+                    if (!stats.isDirectory())
+                        throw err;
+                }
+            }
+        }
+    });
+}
+exports.mkdirP = mkdirP;
+/**
+ * Best effort attempt to determine whether a file exists and is executable.
+ * @param filePath    file path to check
+ * @param extensions  additional file extensions to try
+ * @return if file exists and is executable, returns the file path. otherwise empty string.
+ */
+function tryGetExecutablePath(filePath, extensions) {
+    return __awaiter(this, void 0, void 0, function* () {
+        let stats = undefined;
+        try {
+            // test file exists
+            stats = yield exports.stat(filePath);
+        }
+        catch (err) {
+            if (err.code !== 'ENOENT') {
+                // eslint-disable-next-line no-console
+                console.log(`Unexpected error attempting to determine if executable file exists '${filePath}': ${err}`);
+            }
+        }
+        if (stats && stats.isFile()) {
+            if (exports.IS_WINDOWS) {
+                // on Windows, test for valid extension
+                const upperExt = path.extname(filePath).toUpperCase();
+                if (extensions.some(validExt => validExt.toUpperCase() === upperExt)) {
+                    return filePath;
+                }
+            }
+            else {
+                if (isUnixExecutable(stats)) {
+                    return filePath;
+                }
+            }
+        }
+        // try each extension
+        const originalFilePath = filePath;
+        for (const extension of extensions) {
+            filePath = originalFilePath + extension;
+            stats = undefined;
+            try {
+                stats = yield exports.stat(filePath);
+            }
+            catch (err) {
+                if (err.code !== 'ENOENT') {
+                    // eslint-disable-next-line no-console
+                    console.log(`Unexpected error attempting to determine if executable file exists '${filePath}': ${err}`);
+                }
+            }
+            if (stats && stats.isFile()) {
+                if (exports.IS_WINDOWS) {
+                    // preserve the case of the actual file (since an extension was appended)
+                    try {
+                        const directory = path.dirname(filePath);
+                        const upperName = path.basename(filePath).toUpperCase();
+                        for (const actualName of yield exports.readdir(directory)) {
+                            if (upperName === actualName.toUpperCase()) {
+                                filePath = path.join(directory, actualName);
+                                break;
+                            }
+                        }
+                    }
+                    catch (err) {
+                        // eslint-disable-next-line no-console
+                        console.log(`Unexpected error attempting to determine the actual case of the file '${filePath}': ${err}`);
+                    }
+                    return filePath;
+                }
+                else {
+                    if (isUnixExecutable(stats)) {
+                        return filePath;
+                    }
+                }
+            }
+        }
+        return '';
+    });
+}
+exports.tryGetExecutablePath = tryGetExecutablePath;
+function normalizeSeparators(p) {
+    p = p || '';
+    if (exports.IS_WINDOWS) {
+        // convert slashes on Windows
+        p = p.replace(/\//g, '\\');
+        // remove redundant slashes
+        return p.replace(/\\\\+/g, '\\');
+    }
+    // remove redundant slashes
+    return p.replace(/\/\/+/g, '/');
+}
+// on Mac/Linux, test the execute bit
+//     R   W  X  R  W X R W X
+//   256 128 64 32 16 8 4 2 1
+function isUnixExecutable(stats) {
+    return ((stats.mode & 1) > 0 ||
+        ((stats.mode & 8) > 0 && stats.gid === process.getgid()) ||
+        ((stats.mode & 64) > 0 && stats.uid === process.getuid()));
+}
+//# sourceMappingURL=io-util.js.map
+
+/***/ }),
+
+/***/ 686:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 var __importStar = (this && this.__importStar) || function (mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
@@ -8579,47 +9153,589 @@ var __importStar = (this && this.__importStar) || function (mod) {
     result["default"] = mod;
     return result;
 };
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-const core = __importStar(__webpack_require__(470));
-const mime = __importStar(__webpack_require__(444));
-const image_1 = __importDefault(__webpack_require__(591));
-const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png'];
-class Images {
-    constructor() {
-        this.filenames = new Set();
-        this.images = [];
+const os = __importStar(__webpack_require__(87));
+const events = __importStar(__webpack_require__(614));
+const child = __importStar(__webpack_require__(129));
+const path = __importStar(__webpack_require__(622));
+const io = __importStar(__webpack_require__(1));
+const ioUtil = __importStar(__webpack_require__(672));
+/* eslint-disable @typescript-eslint/unbound-method */
+const IS_WINDOWS = process.platform === 'win32';
+/*
+ * Class for running command line tools. Handles quoting and arg parsing in a platform agnostic way.
+ */
+class ToolRunner extends events.EventEmitter {
+    constructor(toolPath, args, options) {
+        super();
+        if (!toolPath) {
+            throw new Error("Parameter 'toolPath' cannot be null or empty.");
+        }
+        this.toolPath = toolPath;
+        this.args = args || [];
+        this.options = options || {};
     }
-    addFile(filename) {
-        if (this.filenames.has(filename)) {
-            return core.debug(`[${filename}] Skipping duplicate file`);
+    _debug(message) {
+        if (this.options.listeners && this.options.listeners.debug) {
+            this.options.listeners.debug(message);
         }
-        const mimeType = mime.getType(filename);
-        if (null === mimeType) {
-            return core.debug(`[${filename}] Skipping file with unknown mime type`);
-        }
-        if (-1 === SUPPORTED_MIME_TYPES.indexOf(mimeType)) {
-            return core.debug(`[${filename}] Skipping file with unsupported mime type ${mimeType}`);
-        }
-        core.debug(`[${filename}] Adding ${mimeType} image`);
-        this.filenames.add(filename);
-        this.images.push(new image_1.default(filename));
     }
-    [Symbol.iterator]() {
-        return this.images.values();
+    _getCommandString(options, noPrefix) {
+        const toolPath = this._getSpawnFileName();
+        const args = this._getSpawnArgs(options);
+        let cmd = noPrefix ? '' : '[command]'; // omit prefix when piped to a second tool
+        if (IS_WINDOWS) {
+            // Windows + cmd file
+            if (this._isCmdFile()) {
+                cmd += toolPath;
+                for (const a of args) {
+                    cmd += ` ${a}`;
+                }
+            }
+            // Windows + verbatim
+            else if (options.windowsVerbatimArguments) {
+                cmd += `"${toolPath}"`;
+                for (const a of args) {
+                    cmd += ` ${a}`;
+                }
+            }
+            // Windows (regular)
+            else {
+                cmd += this._windowsQuoteCmdArg(toolPath);
+                for (const a of args) {
+                    cmd += ` ${this._windowsQuoteCmdArg(a)}`;
+                }
+            }
+        }
+        else {
+            // OSX/Linux - this can likely be improved with some form of quoting.
+            // creating processes on Unix is fundamentally different than Windows.
+            // on Unix, execvp() takes an arg array.
+            cmd += toolPath;
+            for (const a of args) {
+                cmd += ` ${a}`;
+            }
+        }
+        return cmd;
+    }
+    _processLineBuffer(data, strBuffer, onLine) {
+        try {
+            let s = strBuffer + data.toString();
+            let n = s.indexOf(os.EOL);
+            while (n > -1) {
+                const line = s.substring(0, n);
+                onLine(line);
+                // the rest of the string ...
+                s = s.substring(n + os.EOL.length);
+                n = s.indexOf(os.EOL);
+            }
+            strBuffer = s;
+        }
+        catch (err) {
+            // streaming lines to console is best effort.  Don't fail a build.
+            this._debug(`error processing line. Failed with error ${err}`);
+        }
+    }
+    _getSpawnFileName() {
+        if (IS_WINDOWS) {
+            if (this._isCmdFile()) {
+                return process.env['COMSPEC'] || 'cmd.exe';
+            }
+        }
+        return this.toolPath;
+    }
+    _getSpawnArgs(options) {
+        if (IS_WINDOWS) {
+            if (this._isCmdFile()) {
+                let argline = `/D /S /C "${this._windowsQuoteCmdArg(this.toolPath)}`;
+                for (const a of this.args) {
+                    argline += ' ';
+                    argline += options.windowsVerbatimArguments
+                        ? a
+                        : this._windowsQuoteCmdArg(a);
+                }
+                argline += '"';
+                return [argline];
+            }
+        }
+        return this.args;
+    }
+    _endsWith(str, end) {
+        return str.endsWith(end);
+    }
+    _isCmdFile() {
+        const upperToolPath = this.toolPath.toUpperCase();
+        return (this._endsWith(upperToolPath, '.CMD') ||
+            this._endsWith(upperToolPath, '.BAT'));
+    }
+    _windowsQuoteCmdArg(arg) {
+        // for .exe, apply the normal quoting rules that libuv applies
+        if (!this._isCmdFile()) {
+            return this._uvQuoteCmdArg(arg);
+        }
+        // otherwise apply quoting rules specific to the cmd.exe command line parser.
+        // the libuv rules are generic and are not designed specifically for cmd.exe
+        // command line parser.
+        //
+        // for a detailed description of the cmd.exe command line parser, refer to
+        // http://stackoverflow.com/questions/4094699/how-does-the-windows-command-interpreter-cmd-exe-parse-scripts/7970912#7970912
+        // need quotes for empty arg
+        if (!arg) {
+            return '""';
+        }
+        // determine whether the arg needs to be quoted
+        const cmdSpecialChars = [
+            ' ',
+            '\t',
+            '&',
+            '(',
+            ')',
+            '[',
+            ']',
+            '{',
+            '}',
+            '^',
+            '=',
+            ';',
+            '!',
+            "'",
+            '+',
+            ',',
+            '`',
+            '~',
+            '|',
+            '<',
+            '>',
+            '"'
+        ];
+        let needsQuotes = false;
+        for (const char of arg) {
+            if (cmdSpecialChars.some(x => x === char)) {
+                needsQuotes = true;
+                break;
+            }
+        }
+        // short-circuit if quotes not needed
+        if (!needsQuotes) {
+            return arg;
+        }
+        // the following quoting rules are very similar to the rules that by libuv applies.
+        //
+        // 1) wrap the string in quotes
+        //
+        // 2) double-up quotes - i.e. " => ""
+        //
+        //    this is different from the libuv quoting rules. libuv replaces " with \", which unfortunately
+        //    doesn't work well with a cmd.exe command line.
+        //
+        //    note, replacing " with "" also works well if the arg is passed to a downstream .NET console app.
+        //    for example, the command line:
+        //          foo.exe "myarg:""my val"""
+        //    is parsed by a .NET console app into an arg array:
+        //          [ "myarg:\"my val\"" ]
+        //    which is the same end result when applying libuv quoting rules. although the actual
+        //    command line from libuv quoting rules would look like:
+        //          foo.exe "myarg:\"my val\""
+        //
+        // 3) double-up slashes that precede a quote,
+        //    e.g.  hello \world    => "hello \world"
+        //          hello\"world    => "hello\\""world"
+        //          hello\\"world   => "hello\\\\""world"
+        //          hello world\    => "hello world\\"
+        //
+        //    technically this is not required for a cmd.exe command line, or the batch argument parser.
+        //    the reasons for including this as a .cmd quoting rule are:
+        //
+        //    a) this is optimized for the scenario where the argument is passed from the .cmd file to an
+        //       external program. many programs (e.g. .NET console apps) rely on the slash-doubling rule.
+        //
+        //    b) it's what we've been doing previously (by deferring to node default behavior) and we
+        //       haven't heard any complaints about that aspect.
+        //
+        // note, a weakness of the quoting rules chosen here, is that % is not escaped. in fact, % cannot be
+        // escaped when used on the command line directly - even though within a .cmd file % can be escaped
+        // by using %%.
+        //
+        // the saving grace is, on the command line, %var% is left as-is if var is not defined. this contrasts
+        // the line parsing rules within a .cmd file, where if var is not defined it is replaced with nothing.
+        //
+        // one option that was explored was replacing % with ^% - i.e. %var% => ^%var^%. this hack would
+        // often work, since it is unlikely that var^ would exist, and the ^ character is removed when the
+        // variable is used. the problem, however, is that ^ is not removed when %* is used to pass the args
+        // to an external program.
+        //
+        // an unexplored potential solution for the % escaping problem, is to create a wrapper .cmd file.
+        // % can be escaped within a .cmd file.
+        let reverse = '"';
+        let quoteHit = true;
+        for (let i = arg.length; i > 0; i--) {
+            // walk the string in reverse
+            reverse += arg[i - 1];
+            if (quoteHit && arg[i - 1] === '\\') {
+                reverse += '\\'; // double the slash
+            }
+            else if (arg[i - 1] === '"') {
+                quoteHit = true;
+                reverse += '"'; // double the quote
+            }
+            else {
+                quoteHit = false;
+            }
+        }
+        reverse += '"';
+        return reverse
+            .split('')
+            .reverse()
+            .join('');
+    }
+    _uvQuoteCmdArg(arg) {
+        // Tool runner wraps child_process.spawn() and needs to apply the same quoting as
+        // Node in certain cases where the undocumented spawn option windowsVerbatimArguments
+        // is used.
+        //
+        // Since this function is a port of quote_cmd_arg from Node 4.x (technically, lib UV,
+        // see https://github.com/nodejs/node/blob/v4.x/deps/uv/src/win/process.c for details),
+        // pasting copyright notice from Node within this function:
+        //
+        //      Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+        //
+        //      Permission is hereby granted, free of charge, to any person obtaining a copy
+        //      of this software and associated documentation files (the "Software"), to
+        //      deal in the Software without restriction, including without limitation the
+        //      rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+        //      sell copies of the Software, and to permit persons to whom the Software is
+        //      furnished to do so, subject to the following conditions:
+        //
+        //      The above copyright notice and this permission notice shall be included in
+        //      all copies or substantial portions of the Software.
+        //
+        //      THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        //      IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        //      FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        //      AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        //      LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+        //      FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+        //      IN THE SOFTWARE.
+        if (!arg) {
+            // Need double quotation for empty argument
+            return '""';
+        }
+        if (!arg.includes(' ') && !arg.includes('\t') && !arg.includes('"')) {
+            // No quotation needed
+            return arg;
+        }
+        if (!arg.includes('"') && !arg.includes('\\')) {
+            // No embedded double quotes or backslashes, so I can just wrap
+            // quote marks around the whole thing.
+            return `"${arg}"`;
+        }
+        // Expected input/output:
+        //   input : hello"world
+        //   output: "hello\"world"
+        //   input : hello""world
+        //   output: "hello\"\"world"
+        //   input : hello\world
+        //   output: hello\world
+        //   input : hello\\world
+        //   output: hello\\world
+        //   input : hello\"world
+        //   output: "hello\\\"world"
+        //   input : hello\\"world
+        //   output: "hello\\\\\"world"
+        //   input : hello world\
+        //   output: "hello world\\" - note the comment in libuv actually reads "hello world\"
+        //                             but it appears the comment is wrong, it should be "hello world\\"
+        let reverse = '"';
+        let quoteHit = true;
+        for (let i = arg.length; i > 0; i--) {
+            // walk the string in reverse
+            reverse += arg[i - 1];
+            if (quoteHit && arg[i - 1] === '\\') {
+                reverse += '\\';
+            }
+            else if (arg[i - 1] === '"') {
+                quoteHit = true;
+                reverse += '\\';
+            }
+            else {
+                quoteHit = false;
+            }
+        }
+        reverse += '"';
+        return reverse
+            .split('')
+            .reverse()
+            .join('');
+    }
+    _cloneExecOptions(options) {
+        options = options || {};
+        const result = {
+            cwd: options.cwd || process.cwd(),
+            env: options.env || process.env,
+            silent: options.silent || false,
+            windowsVerbatimArguments: options.windowsVerbatimArguments || false,
+            failOnStdErr: options.failOnStdErr || false,
+            ignoreReturnCode: options.ignoreReturnCode || false,
+            delay: options.delay || 10000
+        };
+        result.outStream = options.outStream || process.stdout;
+        result.errStream = options.errStream || process.stderr;
+        return result;
+    }
+    _getSpawnOptions(options, toolPath) {
+        options = options || {};
+        const result = {};
+        result.cwd = options.cwd;
+        result.env = options.env;
+        result['windowsVerbatimArguments'] =
+            options.windowsVerbatimArguments || this._isCmdFile();
+        if (options.windowsVerbatimArguments) {
+            result.argv0 = `"${toolPath}"`;
+        }
+        return result;
+    }
+    /**
+     * Exec a tool.
+     * Output will be streamed to the live console.
+     * Returns promise with return code
+     *
+     * @param     tool     path to tool to exec
+     * @param     options  optional exec options.  See ExecOptions
+     * @returns   number
+     */
+    exec() {
+        return __awaiter(this, void 0, void 0, function* () {
+            // root the tool path if it is unrooted and contains relative pathing
+            if (!ioUtil.isRooted(this.toolPath) &&
+                (this.toolPath.includes('/') ||
+                    (IS_WINDOWS && this.toolPath.includes('\\')))) {
+                // prefer options.cwd if it is specified, however options.cwd may also need to be rooted
+                this.toolPath = path.resolve(process.cwd(), this.options.cwd || process.cwd(), this.toolPath);
+            }
+            // if the tool is only a file name, then resolve it from the PATH
+            // otherwise verify it exists (add extension on Windows if necessary)
+            this.toolPath = yield io.which(this.toolPath, true);
+            return new Promise((resolve, reject) => {
+                this._debug(`exec tool: ${this.toolPath}`);
+                this._debug('arguments:');
+                for (const arg of this.args) {
+                    this._debug(`   ${arg}`);
+                }
+                const optionsNonNull = this._cloneExecOptions(this.options);
+                if (!optionsNonNull.silent && optionsNonNull.outStream) {
+                    optionsNonNull.outStream.write(this._getCommandString(optionsNonNull) + os.EOL);
+                }
+                const state = new ExecState(optionsNonNull, this.toolPath);
+                state.on('debug', (message) => {
+                    this._debug(message);
+                });
+                const fileName = this._getSpawnFileName();
+                const cp = child.spawn(fileName, this._getSpawnArgs(optionsNonNull), this._getSpawnOptions(this.options, fileName));
+                const stdbuffer = '';
+                if (cp.stdout) {
+                    cp.stdout.on('data', (data) => {
+                        if (this.options.listeners && this.options.listeners.stdout) {
+                            this.options.listeners.stdout(data);
+                        }
+                        if (!optionsNonNull.silent && optionsNonNull.outStream) {
+                            optionsNonNull.outStream.write(data);
+                        }
+                        this._processLineBuffer(data, stdbuffer, (line) => {
+                            if (this.options.listeners && this.options.listeners.stdline) {
+                                this.options.listeners.stdline(line);
+                            }
+                        });
+                    });
+                }
+                const errbuffer = '';
+                if (cp.stderr) {
+                    cp.stderr.on('data', (data) => {
+                        state.processStderr = true;
+                        if (this.options.listeners && this.options.listeners.stderr) {
+                            this.options.listeners.stderr(data);
+                        }
+                        if (!optionsNonNull.silent &&
+                            optionsNonNull.errStream &&
+                            optionsNonNull.outStream) {
+                            const s = optionsNonNull.failOnStdErr
+                                ? optionsNonNull.errStream
+                                : optionsNonNull.outStream;
+                            s.write(data);
+                        }
+                        this._processLineBuffer(data, errbuffer, (line) => {
+                            if (this.options.listeners && this.options.listeners.errline) {
+                                this.options.listeners.errline(line);
+                            }
+                        });
+                    });
+                }
+                cp.on('error', (err) => {
+                    state.processError = err.message;
+                    state.processExited = true;
+                    state.processClosed = true;
+                    state.CheckComplete();
+                });
+                cp.on('exit', (code) => {
+                    state.processExitCode = code;
+                    state.processExited = true;
+                    this._debug(`Exit code ${code} received from tool '${this.toolPath}'`);
+                    state.CheckComplete();
+                });
+                cp.on('close', (code) => {
+                    state.processExitCode = code;
+                    state.processExited = true;
+                    state.processClosed = true;
+                    this._debug(`STDIO streams have closed for tool '${this.toolPath}'`);
+                    state.CheckComplete();
+                });
+                state.on('done', (error, exitCode) => {
+                    if (stdbuffer.length > 0) {
+                        this.emit('stdline', stdbuffer);
+                    }
+                    if (errbuffer.length > 0) {
+                        this.emit('errline', errbuffer);
+                    }
+                    cp.removeAllListeners();
+                    if (error) {
+                        reject(error);
+                    }
+                    else {
+                        resolve(exitCode);
+                    }
+                });
+                if (this.options.input) {
+                    if (!cp.stdin) {
+                        throw new Error('child process missing stdin');
+                    }
+                    cp.stdin.end(this.options.input);
+                }
+            });
+        });
     }
 }
-exports.default = Images;
-
-
-/***/ }),
-
-/***/ 669:
-/***/ (function(module) {
-
-module.exports = require("util");
+exports.ToolRunner = ToolRunner;
+/**
+ * Convert an arg string to an array of args. Handles escaping
+ *
+ * @param    argString   string of arguments
+ * @returns  string[]    array of arguments
+ */
+function argStringToArray(argString) {
+    const args = [];
+    let inQuotes = false;
+    let escaped = false;
+    let arg = '';
+    function append(c) {
+        // we only escape double quotes.
+        if (escaped && c !== '"') {
+            arg += '\\';
+        }
+        arg += c;
+        escaped = false;
+    }
+    for (let i = 0; i < argString.length; i++) {
+        const c = argString.charAt(i);
+        if (c === '"') {
+            if (!escaped) {
+                inQuotes = !inQuotes;
+            }
+            else {
+                append(c);
+            }
+            continue;
+        }
+        if (c === '\\' && escaped) {
+            append(c);
+            continue;
+        }
+        if (c === '\\' && inQuotes) {
+            escaped = true;
+            continue;
+        }
+        if (c === ' ' && !inQuotes) {
+            if (arg.length > 0) {
+                args.push(arg);
+                arg = '';
+            }
+            continue;
+        }
+        append(c);
+    }
+    if (arg.length > 0) {
+        args.push(arg.trim());
+    }
+    return args;
+}
+exports.argStringToArray = argStringToArray;
+class ExecState extends events.EventEmitter {
+    constructor(options, toolPath) {
+        super();
+        this.processClosed = false; // tracks whether the process has exited and stdio is closed
+        this.processError = '';
+        this.processExitCode = 0;
+        this.processExited = false; // tracks whether the process has exited
+        this.processStderr = false; // tracks whether stderr was written to
+        this.delay = 10000; // 10 seconds
+        this.done = false;
+        this.timeout = null;
+        if (!toolPath) {
+            throw new Error('toolPath must not be empty');
+        }
+        this.options = options;
+        this.toolPath = toolPath;
+        if (options.delay) {
+            this.delay = options.delay;
+        }
+    }
+    CheckComplete() {
+        if (this.done) {
+            return;
+        }
+        if (this.processClosed) {
+            this._setResult();
+        }
+        else if (this.processExited) {
+            this.timeout = setTimeout(ExecState.HandleTimeout, this.delay, this);
+        }
+    }
+    _debug(message) {
+        this.emit('debug', message);
+    }
+    _setResult() {
+        // determine whether there is an error
+        let error;
+        if (this.processExited) {
+            if (this.processError) {
+                error = new Error(`There was an error when attempting to execute the process '${this.toolPath}'. This may indicate the process failed to start. Error: ${this.processError}`);
+            }
+            else if (this.processExitCode !== 0 && !this.options.ignoreReturnCode) {
+                error = new Error(`The process '${this.toolPath}' failed with exit code ${this.processExitCode}`);
+            }
+            else if (this.processStderr && this.options.failOnStdErr) {
+                error = new Error(`The process '${this.toolPath}' failed because one or more lines were written to the STDERR stream`);
+            }
+        }
+        // clear the timeout
+        if (this.timeout) {
+            clearTimeout(this.timeout);
+            this.timeout = null;
+        }
+        this.done = true;
+        this.emit('done', error, this.processExitCode);
+    }
+    static HandleTimeout(state) {
+        if (state.done) {
+            return;
+        }
+        if (!state.processClosed && state.processExited) {
+            const message = `The STDIO streams did not close within ${state.delay /
+                1000} seconds of the exit event from process '${state.toolPath}'. This may indicate a child process inherited the STDIO streams and has not yet exited.`;
+            state._debug(message);
+        }
+        state._setResult();
+    }
+}
+//# sourceMappingURL=toolrunner.js.map
 
 /***/ }),
 
@@ -9136,13 +10252,6 @@ function getUserAgent() {
 exports.getUserAgent = getUserAgent;
 //# sourceMappingURL=index.js.map
 
-
-/***/ }),
-
-/***/ 802:
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-module.exports = require(__webpack_require__.ab + "build/Release/xattr.node")
 
 /***/ }),
 
@@ -11607,7 +12716,7 @@ module.exports = {"application/prs.cww":["cww"],"application/vnd.1000minds.decis
 
 /***/ }),
 
-/***/ 984:
+/***/ 986:
 /***/ (function(__unusedmodule, exports, __webpack_require__) {
 
 "use strict";
@@ -11629,47 +12738,32 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const core = __importStar(__webpack_require__(470));
-const github_1 = __webpack_require__(430);
-class Git {
-    constructor(octokit) {
-        this.octokit = octokit;
-    }
-    getFiles(context) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const filePromises = [];
-            switch (context.eventName) {
-                case github_1.ContextEventName.Push:
-                    for (const commit of context.payload.commits) {
-                        const ref = commit.id;
-                        core.debug(`[${context.eventName}] Fetching files for commit ${ref}`);
-                        filePromises.push(this.octokit.repos
-                            .getCommit(Object.assign(Object.assign({}, context.repo), { ref }))
-                            .then(response => response.data.files));
-                    }
-                    break;
-                case github_1.ContextEventName.PullRequest:
-                    core.debug(`[${context.eventName}] Fetching files for pull request ${context.payload.number}`);
-                    filePromises.push(this.octokit.paginate('GET /repos/:owner/:repo/pulls/:pull_number/files', Object.assign(Object.assign({}, context.repo), { pull_number: context.payload.number // eslint-disable-line @typescript-eslint/camelcase
-                     })));
-                    break;
-                default:
-                    assertUnsupportedEvent(context);
-            }
-            return Promise.all(filePromises).then(files => {
-                return files.reduce((result, value) => {
-                    result.push(...value);
-                    return result;
-                }, []);
-            });
-        });
-    }
+const tr = __importStar(__webpack_require__(686));
+/**
+ * Exec a command.
+ * Output will be streamed to the live console.
+ * Returns promise with return code
+ *
+ * @param     commandLine        command to execute (can include additional args). Must be correctly escaped.
+ * @param     args               optional arguments for tool. Escaping is handled by the lib.
+ * @param     options            optional exec options.  See ExecOptions
+ * @returns   Promise<number>    exit code
+ */
+function exec(commandLine, args, options) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const commandArgs = tr.argStringToArray(commandLine);
+        if (commandArgs.length === 0) {
+            throw new Error(`Parameter 'commandLine' cannot be null or empty.`);
+        }
+        // Path to tool to execute should be first arg
+        const toolPath = commandArgs[0];
+        args = commandArgs.slice(1).concat(args || []);
+        const runner = new tr.ToolRunner(toolPath, args, options);
+        return runner.exec();
+    });
 }
-exports.default = Git;
-function assertUnsupportedEvent(context) {
-    throw new Error(`Unsupported event ${context.eventName} (currently supported events include ${Object.values(github_1.ContextEventName).join(', ')})`);
-}
-
+exports.exec = exec;
+//# sourceMappingURL=exec.js.map
 
 /***/ }),
 

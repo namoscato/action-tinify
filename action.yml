@@ -1,5 +1,5 @@
 name: 'Tinify Action'
-description: 'Compress and resize images with the Tinify API'
+description: 'Compress images with the Tinify API'
 author: 'namoscato'
 inputs:
   api_key:
@@ -20,5 +20,5 @@ inputs:
     description: 'Custom commit message'
     required: false
 runs:
-  using: 'docker'
-  image: 'Dockerfile'
+  using: 'node12'
+  main: 'dist/index.js'

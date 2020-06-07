@@ -105,8 +105,8 @@ export default class Git {
 
     await exec.exec('git', [
       'commit',
-      `-m ${Git.getCommitMessage(commit)}`,
-      `-m ${commit.files
+      `--message=${Git.getCommitMessage(commit)}`,
+      `--message=${commit.files
         .map(
           image => `* [${image.getFilename()}] ${image.getCompressionSummary()}`
         )
