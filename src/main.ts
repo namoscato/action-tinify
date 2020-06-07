@@ -26,13 +26,16 @@ async function run(): Promise<void> {
     }
 
     if (compressedImages.length) {
-      git.commit({
-        branch: process.env.GITHUB_HEAD_REF,
-        files: compressedImages,
-        userName: core.getInput('commit_user_name'),
-        userEmail: core.getInput('commit_user_email'),
-        message: core.getInput('commit_message')
-      })
+      git
+        .commit({
+          files: compressedImages,
+          userName: core.getInput('commit_user_name'),
+          userEmail: core.getInput('commit_user_email'),
+          message: core.getInput('commit_message')
+        })
+        .catch(function(error) {
+          throw error
+        })
     }
   } catch (error) {
     core.setFailed(error.message)

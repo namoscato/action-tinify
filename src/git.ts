@@ -5,7 +5,6 @@ import {Context, ContextEventName, File} from './types/github'
 import {GitHub} from '@actions/github/lib/utils'
 
 export interface Commit {
-  branch?: string
   files: string[]
   userName: string
   userEmail: string
@@ -68,18 +67,12 @@ export default class Git {
   }
 
   async commit(commit: Commit): Promise<void> {
-    if (commit.branch) {
-      await exec.exec('git', ['checkout', commit.branch])
-    }
-
     await exec.exec('git', ['add', ...commit.files])
 
-    await exec.exec('git', [
-      `-c user.name="${commit.userName}"`,
-      `-c user.email="${commit.userEmail}"`,
-      'commit',
-      `-m ${Git.getCommitMessage(commit)}`
-    ])
+    await exec.exec('git', ['config', 'user.name', commit.userName])
+    await exec.exec('git', ['config', 'user.email', commit.userEmail])
+
+    await exec.exec('git', ['commit', `-m ${Git.getCommitMessage(commit)}`])
 
     await exec.exec('git', ['push', 'origin'])
   }
