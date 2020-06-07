@@ -11,4 +11,4 @@ WORKDIR /usr/app
 COPY package*.json ./
 RUN npm ci --only=production
 COPY --from=builder /usr/app/lib ./lib
-CMD ["node", "lib/main.js"]
+CMD ["node", "/usr/app/lib/main.js"]
