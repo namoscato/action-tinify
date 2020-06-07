@@ -2651,7 +2651,7 @@ class Git {
             }
             return Promise.all(filesPromises).then(files => {
                 return files.reduce((result, value) => {
-                    result.push(...value);
+                    result.push(...value.filter(file => -1 !== ['added', 'modified'].indexOf(file.status)));
                     return result;
                 }, []);
             });
@@ -2659,12 +2659,15 @@ class Git {
     }
     commit(commit) {
         return __awaiter(this, void 0, void 0, function* () {
+            core.info('Adding modified images');
             yield exec.exec('git', [
                 'add',
                 ...commit.files.map(image => image.getFilename())
             ]);
+            core.info('Configuring git');
             yield exec.exec('git', ['config', 'user.name', commit.userName]);
             yield exec.exec('git', ['config', 'user.email', commit.userEmail]);
+            core.info('Create commit');
             yield exec.exec('git', [
                 'commit',
                 `--message=${Git.getCommitMessage(commit)}`,
@@ -2672,6 +2675,7 @@ class Git {
                     .map(image => `* [${image.getFilename()}] ${image.getCompressionSummary()}`)
                     .join('\n')}`
             ]);
+            core.info('Push commit');
             yield exec.exec('git', ['push', 'origin']);
         });
     }
@@ -3605,6 +3609,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(__webpack_require__(470));
+const fs = __importStar(__webpack_require__(747));
 const mime = __importStar(__webpack_require__(444));
 const image_1 = __importDefault(__webpack_require__(202));
 const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png'];
@@ -3614,15 +3619,18 @@ class Images {
         this.images = [];
     }
     addFile(filename) {
+        if (!fs.existsSync(filename)) {
+            return core.debug(`[${filename}] Skipping nonexistent file`);
+        }
         if (this.filenames.has(filename)) {
             return core.debug(`[${filename}] Skipping duplicate file`);
         }
         const mimeType = mime.getType(filename);
         if (null === mimeType) {
-            return core.warning(`[${filename}] Skipping file with unknown mime type`);
+            return core.debug(`[${filename}] Skipping file with unknown mime type`);
         }
         if (-1 === SUPPORTED_MIME_TYPES.indexOf(mimeType)) {
-            return core.info(`[${filename}] Skipping file with unsupported mime type ${mimeType}`);
+            return core.debug(`[${filename}] Skipping file with unsupported mime type ${mimeType}`);
         }
         core.info(`[${filename}] Adding ${mimeType} image`);
         this.filenames.add(filename);
