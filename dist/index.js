@@ -2888,6 +2888,94 @@ module.exports = Mime;
 
 /***/ }),
 
+/***/ 243:
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+
+const addon = __webpack_require__(802)
+
+function validateArgument (key, val) {
+  switch (key) {
+    case 'path':
+      if (typeof val === 'string') return val
+      throw new TypeError('`path` must be a string')
+    case 'attr':
+      if (typeof val === 'string') return val
+      throw new TypeError('`attr` must be a string')
+    case 'value':
+      if (typeof val === 'string') return Buffer.from(val)
+      if (Buffer.isBuffer(val)) return val
+      throw new TypeError('`value` must be a string or buffer')
+    default:
+      throw new Error(`Unknown argument: ${key}`)
+  }
+}
+
+/* Async methods */
+
+exports.get = function get (path, attr) {
+  path = validateArgument('path', path)
+  attr = validateArgument('attr', attr)
+
+  return addon.get(path, attr)
+}
+
+exports.set = function set (path, attr, value) {
+  path = validateArgument('path', path)
+  attr = validateArgument('attr', attr)
+  value = validateArgument('value', value)
+
+  return addon.set(path, attr, value)
+}
+
+exports.list = function list (path) {
+  path = validateArgument('path', path)
+
+  return addon.list(path)
+}
+
+exports.remove = function remove (path, attr) {
+  path = validateArgument('path', path)
+  attr = validateArgument('attr', attr)
+
+  return addon.remove(path, attr)
+}
+
+/* Sync methods */
+
+exports.getSync = function getSync (path, attr) {
+  path = validateArgument('path', path)
+  attr = validateArgument('attr', attr)
+
+  return addon.getSync(path, attr)
+}
+
+exports.setSync = function setSync (path, attr, value) {
+  path = validateArgument('path', path)
+  attr = validateArgument('attr', attr)
+  value = validateArgument('value', value)
+
+  return addon.setSync(path, attr, value)
+}
+
+exports.listSync = function listSync (path) {
+  path = validateArgument('path', path)
+
+  return addon.listSync(path)
+}
+
+exports.removeSync = function removeSync (path, attr) {
+  path = validateArgument('path', path)
+  attr = validateArgument('attr', attr)
+
+  return addon.removeSync(path, attr)
+}
+
+
+/***/ }),
+
 /***/ 260:
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -8083,9 +8171,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const core = __importStar(__webpack_require__(470));
 const fs = __importStar(__webpack_require__(747));
-const tinify_1 = __importDefault(__webpack_require__(82));
 const bytes_1 = __importDefault(__webpack_require__(63));
 const exifreader_1 = __importDefault(__webpack_require__(310));
+const fs_xattr_1 = __importDefault(__webpack_require__(243));
 class Image {
     constructor(filename) {
         this.filename = filename;
@@ -8093,10 +8181,11 @@ class Image {
     compress() {
         return __awaiter(this, void 0, void 0, function* () {
             this.logInfo('Before');
-            this.source = tinify_1.default.fromFile(this.filename);
-            return this.source.toFile(this.filename).then(() => {
-                this.logInfo('After');
-            });
+            // this.source = tinify.fromFile(this.filename)
+            //
+            // return this.source.toFile(this.filename).then(() => {
+            //   this.logInfo('After')
+            // })
         });
     }
     getFilename() {
@@ -8106,9 +8195,12 @@ class Image {
         return fs.statSync(this.filename).size;
     }
     logInfo(message) {
-        const size = bytes_1.default.format(this.getSize());
-        const exif = JSON.stringify(exifreader_1.default.load(fs.readFileSync(this.filename)), null, 4);
-        core.debug(`[${this.filename}] ${message}: ${size}\n${exif}`);
+        const info = [
+            bytes_1.default.format(this.getSize()),
+            JSON.stringify(exifreader_1.default.load(fs.readFileSync(this.filename)), null, 4),
+            fs_xattr_1.default.getSync(this.filename, 'com.apple.metadata:kMDItemWhereFroms')
+        ];
+        core.debug(`[${this.filename}] ${message}: ${info.join('\n')}`);
     }
 }
 exports.default = Image;
@@ -9044,6 +9136,13 @@ function getUserAgent() {
 exports.getUserAgent = getUserAgent;
 //# sourceMappingURL=index.js.map
 
+
+/***/ }),
+
+/***/ 802:
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+module.exports = require(__webpack_require__.ab + "build/Release/xattr.node")
 
 /***/ }),
 

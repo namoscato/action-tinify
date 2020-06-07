@@ -1,9 +1,6 @@
 name: 'Tinify Action'
 description: 'Compress and resize images with the Tinify API'
 author: 'namoscato'
-runs:
-  using: 'node12'
-  main: 'dist/index.js'
 inputs:
   api_key:
     description: 'Tinify API key'
@@ -11,3 +8,6 @@ inputs:
   github_token:
     description: 'GITHUB_TOKEN secret'
     required: true
+runs:
+  using: 'docker'
+  image: 'Dockerfile'

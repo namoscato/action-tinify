@@ -32,6 +32,7 @@
     "@actions/github": "^3.0.0",
     "bytes": "^3.1.0",
     "exifreader": "^3.12.0",
+    "fs-xattr": "^0.3.1",
     "mime": "^2.4.6",
     "tinify": "^1.6.0-beta.2"
   },
