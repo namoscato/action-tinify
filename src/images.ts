@@ -1,4 +1,5 @@
 import * as core from '@actions/core'
+import * as fs from 'fs'
 import * as mime from 'mime'
 import Image from './image'
 
@@ -9,6 +10,10 @@ export default class Images implements Iterable<Image> {
   private readonly images: Image[] = []
 
   addFile(filename: string): void {
+    if (!fs.existsSync(filename)) {
+      return core.debug(`[${filename}] Skipping nonexistent file`)
+    }
+
     if (this.filenames.has(filename)) {
       return core.debug(`[${filename}] Skipping duplicate file`)
     }
