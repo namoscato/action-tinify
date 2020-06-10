@@ -1,5 +1,5 @@
 name: 'Tinify Image Action'
-description: 'Compress images with the Tinify API'
+description: 'Compress and resize images with the Tinify API'
 author: 'namoscato'
 inputs:
   api_key:

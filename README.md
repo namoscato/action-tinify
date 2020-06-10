@@ -1,6 +1,6 @@
 # Tinify Image Action
 
-[GitHub Action](https://github.com/features/actions) to compress images with the [Tinify API](https://tinypng.com/developers).
+[GitHub Action](https://github.com/features/actions) to compress and resize images with the [Tinify API](https://tinypng.com/developers).
 
 ![Example commit](https://i.imgur.com/FWOosON.png)
 

@@ -2,7 +2,7 @@
   "name": "action-tinify",
   "version": "0.1.0",
   "private": true,
-  "description": "Compress images with Tinify",
+  "description": "Compress and resize images with the Tinify API",
   "main": "lib/main.js",
   "scripts": {
     "build": "tsc",
