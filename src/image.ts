@@ -2,27 +2,25 @@ import * as core from '@actions/core'
 import * as fs from 'fs'
 import tinify from 'tinify'
 import bytes from 'bytes'
+import {imageSize} from 'image-size'
+import {promisify} from 'util'
+import {
+  getCompressionSummary,
+  getResizeOptions,
+  isResizable
+} from './image-utils'
+
+const sizeOf = promisify(imageSize)
 
 export interface Compress {
   resizeWidth?: number
   resizeHeight?: number
 }
 
-/**
- * @see https://tinypng.com/developers/reference/nodejs#resizing-images
- */
-export enum ResizeMethod {
-  /** Scales the image down proportionally. */
-  Scale = 'scale',
-  /** Scales the image down proportionally so that it fits within the given dimensions. */
-  Fit = 'fit'
-}
-
 export default class Image {
-  constructor(
-    private readonly filename: string,
-    private sizes: number[] = []
-  ) {}
+  private readonly sizes: number[] = []
+
+  constructor(private readonly filename: string) {}
 
   async compress(compress: Compress = {}): Promise<void> {
     this.setSize()
@@ -31,17 +29,12 @@ export default class Image {
 
     let source = tinify.fromFile(this.filename)
 
-    const width = compress.resizeWidth
-    const height = compress.resizeHeight
+    core.debug(`[${this.filename}] Retrieving image size`)
+    const dimensions = await sizeOf(this.filename)
 
-    if (width || height) {
-      core.info(`[${this.filename}] Resizing image (${width} x ${height})`)
-
-      source = source.resize({
-        method: width && height ? ResizeMethod.Fit : ResizeMethod.Scale,
-        width,
-        height
-      })
+    if (isResizable(compress, dimensions)) {
+      core.info(`[${this.filename}] Resizing image`)
+      source = source.resize(getResizeOptions(compress))
     }
 
     await source.toFile(this.filename)
@@ -54,12 +47,7 @@ export default class Image {
   }
 
   getCompressionSummary(): string {
-    const before = this.sizes[0]
-    const after = this.sizes[1]
-
-    return `${bytes.format(after - before)} (-${Math.floor(
-      100 * (1 - after / before)
-    )}%)`
+    return getCompressionSummary(this.sizes)
   }
 
   private setSize(): void {
