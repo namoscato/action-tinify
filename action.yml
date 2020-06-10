@@ -1,4 +1,4 @@
-name: 'Tinify Action'
+name: 'Tinify Image Action'
 description: 'Compress images with the Tinify API'
 author: 'namoscato'
 inputs:
@@ -18,6 +18,12 @@ inputs:
     default: ${{ github.actor }}@users.noreply.github.com
   commit_message:
     description: 'Custom commit message'
+    required: false
+  resize_width:
+    description: 'Maximum target image width'
+    required: false
+  resize_height:
+    description: 'Maximum target image height'
     required: false
 runs:
   using: 'node12'
