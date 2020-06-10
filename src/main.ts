@@ -20,11 +20,13 @@ async function run(): Promise<void> {
 
     core.startGroup('Compressing images')
     const compressedImages = []
+    const resizeWidth = Number(core.getInput('resize_width')) || undefined
+    const resizeHeight = Number(core.getInput('resize_height')) || undefined
 
     for (const image of images) {
       await image.compress({
-        resizeWidth: Number(core.getInput('resize_width')),
-        resizeHeight: Number(core.getInput('resize_height'))
+        resizeWidth,
+        resizeHeight
       })
 
       compressedImages.push(image)
