@@ -19,7 +19,13 @@ module.exports =
 /******/ 		};
 /******/
 /******/ 		// Execute the module function
-/******/ 		modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
+/******/ 		var threw = true;
+/******/ 		try {
+/******/ 			modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
+/******/ 			threw = false;
+/******/ 		} finally {
+/******/ 			if(threw) delete installedModules[moduleId];
+/******/ 		}
 /******/
 /******/ 		// Flag the module as loaded
 /******/ 		module.l = true;
@@ -543,9 +549,9 @@ module.exports = require("tls");
 /***/ }),
 
 /***/ 18:
-/***/ (function() {
+/***/ (function(module) {
 
-eval("require")("encoding");
+module.exports = eval("require")("encoding");
 
 
 /***/ }),
@@ -2671,8 +2677,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ContextEventName = void 0;
-const core = __importStar(__webpack_require__(470));
-const exec = __importStar(__webpack_require__(986));
+const core_1 = __webpack_require__(470);
+const exec_1 = __webpack_require__(986);
 const github = __importStar(__webpack_require__(469));
 const git_utils_1 = __webpack_require__(939);
 //region context
@@ -2693,48 +2699,50 @@ class Git {
                 case ContextEventName.Push:
                     for (const commit of context.payload.commits) {
                         const ref = commit.id;
-                        core.info(`[${context.eventName}] Fetching files for commit ${ref}`);
-                        filesPromises.push(this.octokit.repos
-                            .getCommit(Object.assign(Object.assign({}, context.repo), { ref }))
-                            .then(response => response.data.files));
+                        core_1.info(`[${context.eventName}] Fetching files for commit ${ref}`);
+                        filesPromises.push(this.getCommitFiles(Object.assign(Object.assign({}, context.repo), { ref })));
                     }
                     break;
                 case ContextEventName.PullRequest:
-                    core.info(`[${context.eventName}] Fetching files for pull request ${context.payload.number}`);
-                    filesPromises.push(this.octokit.paginate('GET /repos/:owner/:repo/pulls/:pull_number/files', Object.assign(Object.assign({}, context.repo), { pull_number: context.payload.number // eslint-disable-line @typescript-eslint/camelcase
-                     })));
+                    core_1.info(`[${context.eventName}] Fetching files for pull request ${context.payload.number}`);
+                    filesPromises.push(this.octokit.paginate('GET /repos/:owner/:repo/pulls/:pull_number/files', Object.assign(Object.assign({}, context.repo), { pull_number: context.payload.number })));
                     break;
                 default:
                     assertUnsupportedEvent(context);
             }
-            return Promise.all(filesPromises).then(files => {
-                return files.reduce((result, value) => {
-                    result.push(...value.filter(file => -1 !== ['added', 'modified'].indexOf(file.status)));
-                    return result;
-                }, []);
-            });
+            const files = yield Promise.all(filesPromises);
+            return files.reduce((result, value) => {
+                result.push(...value.filter(file => -1 !== ['added', 'modified'].indexOf(file.status)));
+                return result;
+            }, []);
         });
     }
     commit(commit) {
         return __awaiter(this, void 0, void 0, function* () {
-            core.info('Adding modified images');
-            yield exec.exec('git', [
+            core_1.info('Adding modified images');
+            yield exec_1.exec('git', [
                 'add',
                 ...commit.files.map(image => image.getFilename())
             ]);
-            core.info('Configuring git');
-            yield exec.exec('git', ['config', 'user.name', commit.userName]);
-            yield exec.exec('git', ['config', 'user.email', commit.userEmail]);
-            core.info('Create commit');
-            yield exec.exec('git', [
+            core_1.info('Configuring git');
+            yield exec_1.exec('git', ['config', 'user.name', commit.userName]);
+            yield exec_1.exec('git', ['config', 'user.email', commit.userEmail]);
+            core_1.info('Create commit');
+            yield exec_1.exec('git', [
                 'commit',
                 `--message=${git_utils_1.getCommitMessage(commit)}`,
                 `--message=${commit.files
                     .map(image => `* [${image.getFilename()}] ${image.getCompressionSummary()}`)
                     .join('\n')}`
             ]);
-            core.info('Push commit');
-            yield exec.exec('git', ['push', 'origin']);
+            core_1.info('Push commit');
+            yield exec_1.exec('git', ['push', 'origin']);
+        });
+    }
+    getCommitFiles(params) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const response = yield this.octokit.repos.getCommit(params);
+            return response.data.files;
         });
     }
 }
@@ -3401,25 +3409,6 @@ function checkMode (stat, options) {
 
 "use strict";
 
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -3433,27 +3422,27 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const core = __importStar(__webpack_require__(470));
-const github = __importStar(__webpack_require__(469));
+const core_1 = __webpack_require__(470);
+const github_1 = __webpack_require__(469);
 const tinify_1 = __importDefault(__webpack_require__(82));
 const images_1 = __importDefault(__webpack_require__(275));
 const git_1 = __importDefault(__webpack_require__(136));
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            tinify_1.default.key = core.getInput('api_key', { required: true });
-            const git = new git_1.default(core.getInput('github_token', { required: true }));
-            core.startGroup('Collecting affected images');
-            const files = yield git.getFiles(github.context);
+            tinify_1.default.key = core_1.getInput('api_key', { required: true });
+            const git = new git_1.default(core_1.getInput('github_token', { required: true }));
+            core_1.startGroup('Collecting affected images');
+            const files = yield git.getFiles(github_1.context);
             const images = new images_1.default();
             for (const file of files) {
                 images.addFile(file.filename);
             }
-            core.endGroup();
-            core.startGroup('Compressing images');
+            core_1.endGroup();
+            core_1.startGroup('Compressing images');
             const compressedImages = [];
-            const resizeWidth = Number(core.getInput('resize_width')) || undefined;
-            const resizeHeight = Number(core.getInput('resize_height')) || undefined;
+            const resizeWidth = Number(core_1.getInput('resize_width')) || undefined;
+            const resizeHeight = Number(core_1.getInput('resize_height')) || undefined;
             for (const image of images) {
                 yield image.compress({
                     resizeWidth,
@@ -3461,25 +3450,21 @@ function run() {
                 });
                 compressedImages.push(image);
             }
-            core.endGroup();
+            core_1.endGroup();
             if (compressedImages.length) {
-                core.startGroup('Committing changes');
-                git
-                    .commit({
+                core_1.startGroup('Committing changes');
+                yield git.commit({
                     files: compressedImages,
-                    userName: core.getInput('commit_user_name'),
-                    userEmail: core.getInput('commit_user_email'),
-                    message: core.getInput('commit_message')
-                })
-                    .catch(function (error) {
-                    throw error;
+                    userName: core_1.getInput('commit_user_name'),
+                    userEmail: core_1.getInput('commit_user_email'),
+                    message: core_1.getInput('commit_message')
                 });
-                core.endGroup();
+                core_1.endGroup();
             }
         }
         catch (error) {
-            core.setFailed(error.message);
-            core.debug(error.stack);
+            core_1.setFailed(error.message);
+            core_1.debug(error.stack);
         }
     });
 }
@@ -3493,25 +3478,6 @@ run();
 
 "use strict";
 
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -3525,8 +3491,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const core = __importStar(__webpack_require__(470));
-const fs = __importStar(__webpack_require__(747));
+const core_1 = __webpack_require__(470);
+const fs_1 = __webpack_require__(747);
 const tinify_1 = __importDefault(__webpack_require__(82));
 const bytes_1 = __importDefault(__webpack_require__(63));
 const image_size_1 = __webpack_require__(696);
@@ -3541,12 +3507,12 @@ class Image {
     compress(compress = {}) {
         return __awaiter(this, void 0, void 0, function* () {
             this.setSize();
-            core.info(`[${this.filename}] Compressing image`);
+            core_1.info(`[${this.filename}] Compressing image`);
             let source = tinify_1.default.fromFile(this.filename);
-            core.debug(`[${this.filename}] Retrieving image size`);
+            core_1.debug(`[${this.filename}] Retrieving image size`);
             const dimensions = yield sizeOf(this.filename);
             if (image_utils_1.isResizable(compress, dimensions)) {
-                core.info(`[${this.filename}] Resizing image`);
+                core_1.info(`[${this.filename}] Resizing image`);
                 source = source.resize(image_utils_1.getResizeOptions(compress));
             }
             yield source.toFile(this.filename);
@@ -3560,9 +3526,9 @@ class Image {
         return image_utils_1.getCompressionSummary(this.sizes);
     }
     setSize() {
-        const size = fs.statSync(this.filename).size;
+        const size = fs_1.statSync(this.filename).size;
         this.sizes.push(size);
-        core.debug(`[${this.filename}] ${bytes_1.default.format(size)}`);
+        core_1.debug(`[${this.filename}] ${bytes_1.default.format(size)}`);
     }
 }
 exports.default = Image;
@@ -3944,32 +3910,13 @@ exports.Context = Context;
 
 "use strict";
 
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || function (mod) {
-    if (mod && mod.__esModule) return mod;
-    var result = {};
-    if (mod != null) for (var k in mod) if (k !== "default" && Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
-    __setModuleDefault(result, mod);
-    return result;
-};
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const core = __importStar(__webpack_require__(470));
-const fs = __importStar(__webpack_require__(747));
-const mime = __importStar(__webpack_require__(444));
+const core_1 = __webpack_require__(470);
+const fs_1 = __webpack_require__(747);
+const mime_1 = __webpack_require__(444);
 const image_1 = __importDefault(__webpack_require__(202));
 const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png'];
 class Images {
@@ -3978,20 +3925,20 @@ class Images {
         this.images = [];
     }
     addFile(filename) {
-        if (!fs.existsSync(filename)) {
-            return core.debug(`[${filename}] Skipping nonexistent file`);
+        if (!fs_1.existsSync(filename)) {
+            return core_1.debug(`[${filename}] Skipping nonexistent file`);
         }
         if (this.filenames.has(filename)) {
-            return core.debug(`[${filename}] Skipping duplicate file`);
+            return core_1.debug(`[${filename}] Skipping duplicate file`);
         }
-        const mimeType = mime.getType(filename);
+        const mimeType = mime_1.getType(filename);
         if (null === mimeType) {
-            return core.debug(`[${filename}] Skipping file with unknown mime type`);
+            return core_1.debug(`[${filename}] Skipping file with unknown mime type`);
         }
         if (-1 === SUPPORTED_MIME_TYPES.indexOf(mimeType)) {
-            return core.debug(`[${filename}] Skipping file with unsupported mime type ${mimeType}`);
+            return core_1.debug(`[${filename}] Skipping file with unsupported mime type ${mimeType}`);
         }
-        core.info(`[${filename}] Adding ${mimeType} image`);
+        core_1.info(`[${filename}] Adding ${mimeType} image`);
         this.filenames.add(filename);
         this.images.push(new image_1.default(filename));
     }
