@@ -1,10 +1,11 @@
-import * as core from '@actions/core'
-import * as exec from '@actions/exec'
+import {info} from '@actions/core'
+import {exec} from '@actions/exec'
 import * as github from '@actions/github'
 import {GitHub} from '@actions/github/lib/utils'
 import Webhooks from '@octokit/webhooks'
 import Image from './image'
 import {getCommitMessage} from './git-utils'
+import {Endpoints} from '@octokit/types'
 import WebhookPayloadPush = Webhooks.WebhookPayloadPush
 import WebhookPayloadPullRequest = Webhooks.WebhookPayloadPullRequest
 
@@ -56,20 +57,18 @@ export default class Git {
         for (const commit of context.payload.commits) {
           const ref = commit.id
 
-          core.info(`[${context.eventName}] Fetching files for commit ${ref}`)
+          info(`[${context.eventName}] Fetching files for commit ${ref}`)
 
           filesPromises.push(
-            this.octokit.repos
-              .getCommit({
-                ...context.repo,
-                ref
-              })
-              .then(response => response.data.files)
+            this.getCommitFiles({
+              ...context.repo,
+              ref
+            })
           )
         }
         break
       case ContextEventName.PullRequest:
-        core.info(
+        info(
           `[${context.eventName}] Fetching files for pull request ${context.payload.number}`
         )
 
@@ -78,7 +77,7 @@ export default class Git {
             'GET /repos/:owner/:repo/pulls/:pull_number/files',
             {
               ...context.repo,
-              pull_number: context.payload.number // eslint-disable-line @typescript-eslint/camelcase
+              pull_number: context.payload.number
             }
           )
         )
@@ -87,32 +86,32 @@ export default class Git {
         assertUnsupportedEvent(context)
     }
 
-    return Promise.all(filesPromises).then(files => {
-      return files.reduce((result, value) => {
-        result.push(
-          ...value.filter(
-            file => -1 !== ['added', 'modified'].indexOf(file.status)
-          )
-        )
+    const files = await Promise.all(filesPromises)
 
-        return result
-      }, [])
-    })
+    return files.reduce((result, value) => {
+      result.push(
+        ...value.filter(
+          file => -1 !== ['added', 'modified'].indexOf(file.status)
+        )
+      )
+
+      return result
+    }, [])
   }
 
   async commit(commit: Commit): Promise<void> {
-    core.info('Adding modified images')
-    await exec.exec('git', [
+    info('Adding modified images')
+    await exec('git', [
       'add',
       ...commit.files.map(image => image.getFilename())
     ])
 
-    core.info('Configuring git')
-    await exec.exec('git', ['config', 'user.name', commit.userName])
-    await exec.exec('git', ['config', 'user.email', commit.userEmail])
+    info('Configuring git')
+    await exec('git', ['config', 'user.name', commit.userName])
+    await exec('git', ['config', 'user.email', commit.userEmail])
 
-    core.info('Create commit')
-    await exec.exec('git', [
+    info('Create commit')
+    await exec('git', [
       'commit',
       `--message=${getCommitMessage(commit)}`,
       `--message=${commit.files
@@ -122,8 +121,16 @@ export default class Git {
         .join('\n')}`
     ])
 
-    core.info('Push commit')
-    await exec.exec('git', ['push', 'origin'])
+    info('Push commit')
+    await exec('git', ['push', 'origin'])
+  }
+
+  private async getCommitFiles(
+    params: Endpoints['GET /repos/:owner/:repo/commits/:ref']['parameters']
+  ): Promise<File[]> {
+    const response = await this.octokit.repos.getCommit(params)
+
+    return response.data.files
   }
 }
 

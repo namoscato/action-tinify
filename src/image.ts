@@ -1,5 +1,5 @@
-import * as core from '@actions/core'
-import * as fs from 'fs'
+import {info, debug} from '@actions/core'
+import {statSync} from 'fs'
 import tinify from 'tinify'
 import bytes from 'bytes'
 import {imageSize} from 'image-size'
@@ -25,15 +25,15 @@ export default class Image {
   async compress(compress: Compress = {}): Promise<void> {
     this.setSize()
 
-    core.info(`[${this.filename}] Compressing image`)
+    info(`[${this.filename}] Compressing image`)
 
     let source = tinify.fromFile(this.filename)
 
-    core.debug(`[${this.filename}] Retrieving image size`)
+    debug(`[${this.filename}] Retrieving image size`)
     const dimensions = await sizeOf(this.filename)
 
     if (isResizable(compress, dimensions)) {
-      core.info(`[${this.filename}] Resizing image`)
+      info(`[${this.filename}] Resizing image`)
       source = source.resize(getResizeOptions(compress))
     }
 
@@ -51,10 +51,10 @@ export default class Image {
   }
 
   private setSize(): void {
-    const size = fs.statSync(this.filename).size
+    const size = statSync(this.filename).size
 
     this.sizes.push(size)
 
-    core.debug(`[${this.filename}] ${bytes.format(size)}`)
+    debug(`[${this.filename}] ${bytes.format(size)}`)
   }
 }

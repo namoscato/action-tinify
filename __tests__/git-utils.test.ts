@@ -1,5 +1,6 @@
 import {getCommitMessage} from '../src/git-utils'
 import {Commit} from '../src/git'
+import Image from '../src/image'
 
 describe('getCommitMessage', () => {
   test('defined message', () => {
@@ -9,15 +10,15 @@ describe('getCommitMessage', () => {
 
   test('one file', () => {
     const message = getCommitMessage({
-      files: ['FILE']
-    } as any)
+      files: [new Image('FILE')]
+    } as Commit)
     expect(message).toEqual('Compress image')
   })
 
   test('multiple files', () => {
     const message = getCommitMessage({
-      files: ['FILE1', 'FILE2']
-    } as any)
+      files: [new Image('FILE1'), new Image('FILE2')]
+    } as Commit)
     expect(message).toEqual('Compress images')
   })
 })

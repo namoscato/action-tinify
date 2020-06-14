@@ -1,27 +1,27 @@
-import * as core from '@actions/core'
-import * as github from '@actions/github'
+import {debug, endGroup, getInput, setFailed, startGroup} from '@actions/core'
+import {context} from '@actions/github'
 import tinify from 'tinify'
 import Images from './images'
 import Git, {Context} from './git'
 
 async function run(): Promise<void> {
   try {
-    tinify.key = core.getInput('api_key', {required: true})
-    const git = new Git(core.getInput('github_token', {required: true}))
+    tinify.key = getInput('api_key', {required: true})
+    const git = new Git(getInput('github_token', {required: true}))
 
-    core.startGroup('Collecting affected images')
-    const files = await git.getFiles(github.context as Context)
+    startGroup('Collecting affected images')
+    const files = await git.getFiles(context as Context)
     const images = new Images()
 
     for (const file of files) {
       images.addFile(file.filename)
     }
-    core.endGroup()
+    endGroup()
 
-    core.startGroup('Compressing images')
+    startGroup('Compressing images')
     const compressedImages = []
-    const resizeWidth = Number(core.getInput('resize_width')) || undefined
-    const resizeHeight = Number(core.getInput('resize_height')) || undefined
+    const resizeWidth = Number(getInput('resize_width')) || undefined
+    const resizeHeight = Number(getInput('resize_height')) || undefined
 
     for (const image of images) {
       await image.compress({
@@ -31,25 +31,21 @@ async function run(): Promise<void> {
 
       compressedImages.push(image)
     }
-    core.endGroup()
+    endGroup()
 
     if (compressedImages.length) {
-      core.startGroup('Committing changes')
-      git
-        .commit({
-          files: compressedImages,
-          userName: core.getInput('commit_user_name'),
-          userEmail: core.getInput('commit_user_email'),
-          message: core.getInput('commit_message')
-        })
-        .catch(function(error) {
-          throw error
-        })
-      core.endGroup()
+      startGroup('Committing changes')
+      await git.commit({
+        files: compressedImages,
+        userName: getInput('commit_user_name'),
+        userEmail: getInput('commit_user_email'),
+        message: getInput('commit_message')
+      })
+      endGroup()
     }
   } catch (error) {
-    core.setFailed(error.message)
-    core.debug(error.stack)
+    setFailed(error.message)
+    debug(error.stack)
   }
 }
 
