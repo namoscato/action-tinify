@@ -1,4 +1,4 @@
-import {getInput, startGroup, endGroup, setFailed, debug} from '@actions/core'
+import {debug, endGroup, getInput, setFailed, startGroup} from '@actions/core'
 import {context} from '@actions/github'
 import tinify from 'tinify'
 import Images from './images'
