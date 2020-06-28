@@ -24,12 +24,14 @@ async function run(): Promise<void> {
     const resizeHeight = Number(getInput('resize_height')) || undefined
 
     for (const image of images) {
-      await image.compress({
+      const compressed = await image.compress({
         resizeWidth,
         resizeHeight
       })
 
-      compressedImages.push(image)
+      if (compressed) {
+        compressedImages.push(image)
+      }
     }
     endGroup()
 

@@ -1,4 +1,4 @@
-import {info, debug} from '@actions/core'
+import {debug, info} from '@actions/core'
 import {statSync} from 'fs'
 import tinify from 'tinify'
 import bytes from 'bytes'
@@ -9,6 +9,7 @@ import {
   getResizeOptions,
   isResizable
 } from './image-utils'
+import Exif, {Tag} from './exif'
 
 const sizeOf = promisify(imageSize)
 
@@ -18,28 +19,36 @@ export interface Compress {
 }
 
 export default class Image {
+  private readonly exif: Exif
   private readonly sizes: number[] = []
 
-  constructor(private readonly filename: string) {}
+  constructor(private readonly filename: string) {
+    this.exif = new Exif(filename)
+  }
 
-  async compress(compress: Compress = {}): Promise<void> {
+  async compress(compress: Compress = {}): Promise<boolean> {
+    debug('EXIF')
+    debug(await this.exif.get(Tag.Software))
+
     this.setSize()
 
     info(`[${this.filename}] Compressing image`)
 
-    let source = tinify.fromFile(this.filename)
+    return false
 
-    debug(`[${this.filename}] Retrieving image size`)
-    const dimensions = await sizeOf(this.filename)
-
-    if (isResizable(compress, dimensions)) {
-      info(`[${this.filename}] Resizing image`)
-      source = source.resize(getResizeOptions(compress))
-    }
-
-    await source.toFile(this.filename)
-
-    this.setSize()
+    // let source = tinify.fromFile(this.filename)
+    //
+    // debug(`[${this.filename}] Retrieving image size`)
+    // const dimensions = await sizeOf(this.filename)
+    //
+    // if (isResizable(compress, dimensions)) {
+    //   info(`[${this.filename}] Resizing image`)
+    //   source = source.resize(getResizeOptions(compress))
+    // }
+    //
+    // await source.toFile(this.filename)
+    //
+    // this.setSize()
   }
 
   getFilename(): string {
