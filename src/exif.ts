@@ -9,7 +9,7 @@ export default class Exif {
 
   constructor(private filename: string) {}
 
-  async get(tag: Tag): Promise<string> {
+  async get(tags: Tag[]): Promise<string> {
     let output = ''
 
     const options: ExecOptions = {
@@ -20,8 +20,21 @@ export default class Exif {
       }
     }
 
-    await exec(Exif.COMMAND, [`-${tag}`, this.filename], options)
+    await exec(
+      Exif.COMMAND,
+      ['-veryShort', '-tab', ...tags.map(tag => `-${tag}`), this.filename],
+      options
+    )
 
     return output
+  }
+
+  async set(inputs: [Tag, string][]): Promise<boolean> {
+    return Boolean(
+      await exec(Exif.COMMAND, [
+        ...inputs.map(input => `-${input[0]}=${input[1]}`),
+        this.filename
+      ])
+    )
   }
 }

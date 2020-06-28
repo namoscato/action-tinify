@@ -28,7 +28,10 @@ export default class Image {
 
   async compress(compress: Compress = {}): Promise<boolean> {
     debug('EXIF')
-    debug(await this.exif.get(Tag.Software))
+    debug(await this.exif.get([]))
+    debug(await this.exif.get([Tag.Software]))
+    debug(String(await this.exif.set([[Tag.Software, 'tinify.com']])))
+    debug(await this.exif.get([Tag.Software]))
 
     this.setSize()
 
