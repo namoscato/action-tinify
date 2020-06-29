@@ -1,7 +1,8 @@
 import {exec, ExecOptions} from '@actions/exec'
 
 export enum Tag {
-  Software = 'Software'
+  Software = 'Software',
+  XMPToolkit = 'xmptoolkit'
 }
 
 export default class Exif {
@@ -9,7 +10,7 @@ export default class Exif {
 
   constructor(private filename: string) {}
 
-  async get(tags: Tag[]): Promise<string> {
+  async get(tags: Tag[] = []): Promise<string> {
     let output = ''
 
     const options: ExecOptions = {
