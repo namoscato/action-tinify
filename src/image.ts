@@ -32,7 +32,11 @@ export default class Image {
   async compress(compress: Compress = {}): Promise<boolean> {
     info(`[${this.filename}] Checking Exif state`)
 
-    if (SOFTWARE_TAG === (await this.exif.get([Tag.Software]))) {
+    const software = await this.exif.get([Tag.Software])
+
+    info('software value: ' + software)
+
+    if (SOFTWARE_TAG === software.trim()) {
       info(`[${this.filename}] Skipping already compressed image`)
       return false
     }
