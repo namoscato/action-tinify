@@ -8,6 +8,7 @@
 
 * filters PNG and JPEG files in a commit or pull request
 * optionally scales images proportionally
+* sets Exif metadata to prevent duplicate compressions
 * pushes commit with compression metrics
 
 ## Usage
@@ -16,7 +17,6 @@
 name: image
 on:
   pull_request:
-    types: [opened]
 jobs:
   compress:
     runs-on: ubuntu-latest
