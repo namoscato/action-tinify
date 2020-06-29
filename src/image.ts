@@ -1,4 +1,4 @@
-import {info, debug} from '@actions/core'
+import {debug, info} from '@actions/core'
 import {statSync} from 'fs'
 import tinify from 'tinify'
 import bytes from 'bytes'
@@ -9,8 +9,12 @@ import {
   getResizeOptions,
   isResizable
 } from './image-utils'
+import Exif, {Tag} from './exif'
 
 const sizeOf = promisify(imageSize)
+
+/** Software Exif value used to maintain state */
+const SOFTWARE_TAG = 'tinify.com'
 
 export interface Compress {
   resizeWidth?: number
@@ -18,11 +22,21 @@ export interface Compress {
 }
 
 export default class Image {
+  private readonly exif: Exif
   private readonly sizes: number[] = []
 
-  constructor(private readonly filename: string) {}
+  constructor(private readonly filename: string) {
+    this.exif = new Exif(filename)
+  }
 
-  async compress(compress: Compress = {}): Promise<void> {
+  async compress(compress: Compress = {}): Promise<boolean> {
+    info(`[${this.filename}] Checking Exif state`)
+
+    if (SOFTWARE_TAG === (await this.exif.get([Tag.Software])).trim()) {
+      info(`[${this.filename}] Skipping already compressed image`)
+      return false
+    }
+
     this.setSize()
 
     info(`[${this.filename}] Compressing image`)
@@ -39,7 +53,15 @@ export default class Image {
 
     await source.toFile(this.filename)
 
+    info(`[${this.filename}] Setting Exif state`)
+    await this.exif.set([
+      [Tag.Software, SOFTWARE_TAG],
+      [Tag.XMPToolkit, '']
+    ])
+
     this.setSize()
+
+    return true
   }
 
   getFilename(): string {

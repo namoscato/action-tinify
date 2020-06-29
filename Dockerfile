@@ -7,6 +7,9 @@ COPY src ./src
 RUN npm run build
 
 FROM node:lts
+RUN apt-get update \
+  && apt-get -y install exiftool \
+  && rm -rf /var/lib/apt/lists/*
 WORKDIR /usr/app
 COPY package*.json ./
 RUN npm ci --only=production

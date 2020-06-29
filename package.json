@@ -9,9 +9,8 @@
     "format": "prettier --write **/*.ts",
     "format-check": "prettier --check **/*.ts",
     "lint": "eslint {__tests__,src}/**/*.ts",
-    "pack": "ncc build",
     "test": "jest",
-    "all": "npm run build && npm run format && npm run lint && npm run pack && npm test"
+    "all": "npm run build && npm run format && npm run lint && npm test"
   },
   "repository": {
     "type": "git",
@@ -46,7 +45,6 @@
     "@types/nock": "^11.1.0",
     "@types/node": "^12.12.47",
     "@typescript-eslint/parser": "^2.8.0",
-    "@zeit/ncc": "^0.22.3",
     "eslint": "^6.8.0",
     "eslint-plugin-github": "^4.0.1",
     "eslint-plugin-jest": "^23.17.1",
