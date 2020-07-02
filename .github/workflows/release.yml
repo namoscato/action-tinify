@@ -1,6 +1,5 @@
 name: release
 on:
-  pull_request:
   release:
     types: [published]
 jobs:
@@ -18,7 +17,7 @@ jobs:
           publish_latest_tag: true
   docker:
     runs-on: ubuntu-latest
-#    needs: git
+    needs: git
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -28,7 +27,6 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           repository: namoscato/github-action-tinify
-#          tags: latest,${{ needs.git.outputs.major_tag }}
-          tags: latest,v1
+          tags: latest,${{ needs.git.outputs.major_tag }}
           tag_with_ref: true
           add_git_labels: true
