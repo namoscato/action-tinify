@@ -8,7 +8,7 @@
     "build": "tsc",
     "format": "prettier --write **/*.ts",
     "format-check": "prettier --check **/*.ts",
-    "lint": "eslint {__tests__,src}/**/*.ts",
+    "lint": "tsc --noEmit && eslint {__tests__,src}/**/*.ts",
     "test": "jest",
     "all": "npm run build && npm run format && npm run lint && npm test"
   },
