@@ -5,8 +5,11 @@ on:
 jobs:
   git:
     runs-on: ubuntu-latest
+    outputs:
+      major_tag: REF=${{ steps.tag.outputs.ref }}; echo ${REF#tags/}
     steps:
-      - name: Bump git tags
+      - id: tag
+        name: Bump git tags
         uses: Actions-R-Us/actions-tagger@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -24,6 +27,6 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           repository: namoscato/github-action-tinify
-          tags: latest,${{ needs.git.outputs.ref }}
+          tags: latest,${{ needs.git.outputs.major_tag }}
           tag_with_ref: true
           add_git_labels: true
