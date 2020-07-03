@@ -46,6 +46,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+      - name: Reference repository Dockerfile
+        run: "sed -i -E \"s/(image: ')[^']+(')/\\1Dockerfile\\2/\" action.yml"
       - name: Use action
         uses: ./
         with:
