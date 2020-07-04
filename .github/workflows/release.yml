@@ -18,8 +18,8 @@ jobs:
       - name: Extract major version
         id: version
         env:
-          REF: ${{ steps.tag.outputs.ref }}
-        run: echo ::set-output name=major::${REF#tags/}
+          REF_NAME: ${{ steps.tag.outputs.ref_name }}
+        run: echo ::set-output name=major::${REF_NAME#tags/}
   docker:
     runs-on: ubuntu-latest
     needs: git
