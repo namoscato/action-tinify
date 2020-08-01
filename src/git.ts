@@ -2,12 +2,14 @@ import {info} from '@actions/core'
 import {exec} from '@actions/exec'
 import * as github from '@actions/github'
 import {GitHub} from '@actions/github/lib/utils'
-import Webhooks from '@octokit/webhooks'
+import {EventNames, EventPayloads} from '@octokit/webhooks'
 import Image from './image'
 import {getCommitMessage} from './git-utils'
 import {Endpoints} from '@octokit/types'
-import WebhookPayloadPush = Webhooks.WebhookPayloadPush
-import WebhookPayloadPullRequest = Webhooks.WebhookPayloadPullRequest
+import PushEvent = EventNames.PushEvent
+import PullRequestEvent = EventNames.PullRequestEvent
+import WebhookPayloadPush = EventPayloads.WebhookPayloadPush
+import WebhookPayloadPullRequest = EventPayloads.WebhookPayloadPullRequest
 
 export interface File {
   filename: string
@@ -23,12 +25,12 @@ export enum ContextEventName {
 type ContextBase = typeof github.context
 
 interface ContextPush extends ContextBase {
-  eventName: ContextEventName.Push
+  eventName: PushEvent
   payload: WebhookPayloadPush
 }
 
 interface ContextPullRequest extends ContextBase {
-  eventName: ContextEventName.PullRequest
+  eventName: PullRequestEvent
   payload: WebhookPayloadPullRequest
 }
 
@@ -83,7 +85,7 @@ export default class Git {
         )
         break
       default:
-        assertUnsupportedEvent(context)
+        return assertUnsupportedEvent(context)
     }
 
     const files = await Promise.all(filesPromises)
