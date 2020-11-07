@@ -2,7 +2,7 @@ import {debug, endGroup, getInput, setFailed, startGroup} from '@actions/core'
 import {context} from '@actions/github'
 import tinify from 'tinify'
 import Images from './images'
-import Git, {Context} from './git'
+import Git from './git'
 
 async function run(): Promise<void> {
   try {
@@ -10,7 +10,7 @@ async function run(): Promise<void> {
     const git = new Git(getInput('github_token', {required: true}))
 
     startGroup('Collecting affected images')
-    const files = await git.getFiles(context as Context)
+    const files = await git.getFiles(context)
     const images = new Images()
 
     for (const file of files) {
