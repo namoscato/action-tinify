@@ -2,40 +2,20 @@ import {info} from '@actions/core'
 import {exec} from '@actions/exec'
 import * as github from '@actions/github'
 import {GitHub} from '@actions/github/lib/utils'
-import {EventNames, EventPayloads} from '@octokit/webhooks'
 import Image from './image'
 import {getCommitMessage} from './git-utils'
 import {Endpoints} from '@octokit/types'
-import PushEvent = EventNames.PushEvent
-import PullRequestEvent = EventNames.PullRequestEvent
-import WebhookPayloadPush = EventPayloads.WebhookPayloadPush
-import WebhookPayloadPullRequest = EventPayloads.WebhookPayloadPullRequest
+import {Context} from '@actions/github/lib/context'
 
-export interface File {
-  filename: string
-  status: string
-}
-
-//region context
 export enum ContextEventName {
   Push = 'push',
   PullRequest = 'pull_request'
 }
 
-type ContextBase = typeof github.context
-
-interface ContextPush extends ContextBase {
-  eventName: PushEvent
-  payload: WebhookPayloadPush
+export interface File {
+  filename: string
+  status: string
 }
-
-interface ContextPullRequest extends ContextBase {
-  eventName: PullRequestEvent
-  payload: WebhookPayloadPullRequest
-}
-
-export type Context = ContextPush | ContextPullRequest
-//endregion
 
 export interface Commit {
   files: Image[]

@@ -8,4 +8,4 @@
     "bracketSpacing": false,
     "arrowParens": "avoid",
     "parser": "typescript"
-  }
+}
