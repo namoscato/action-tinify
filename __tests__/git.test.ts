@@ -1,5 +1,6 @@
-import Git, {Context, ContextEventName} from '../src/git'
+import Git, {ContextEventName} from '../src/git'
 import nock, {Scope} from 'nock'
+import {Context} from '@actions/github/lib/context'
 
 describe('Git', () => {
   let target: Git
@@ -38,7 +39,7 @@ describe('Git', () => {
       })
 
       test('should fetch files', async () => {
-        const files = await target.getFiles({
+        const files = await target.getFiles(({
           eventName: ContextEventName.Push,
           payload: {
             commits: [{id: 'C1'}, {id: 'C2'}]
@@ -47,7 +48,7 @@ describe('Git', () => {
             owner: 'OWNER',
             repo: 'REPO'
           }
-        } as Context)
+        } as unknown) as Context)
 
         expect(files).toEqual([
           {
@@ -83,7 +84,7 @@ describe('Git', () => {
       })
 
       test('should fetch files', async () => {
-        const files = await target.getFiles({
+        const files = await target.getFiles(({
           eventName: ContextEventName.PullRequest,
           payload: {
             number: 1
@@ -92,7 +93,7 @@ describe('Git', () => {
             owner: 'OWNER',
             repo: 'REPO'
           }
-        } as Context)
+        } as unknown) as Context)
 
         expect(files).toEqual([
           {
