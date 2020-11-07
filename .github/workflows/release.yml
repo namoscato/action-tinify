@@ -32,6 +32,6 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
           repository: namoscato/github-action-tinify
-          tags: latest,${{ needs.git.outputs.major_version }}
+          tags: ${{ needs.git.outputs.major_version }}
           tag_with_ref: true
           add_git_labels: true
