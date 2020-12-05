@@ -40,7 +40,7 @@
   "devDependencies": {
     "@octokit/webhooks": "^7.16.1",
     "@types/bytes": "^3.1.0",
-    "@types/jest": "^26.0.15",
+    "@types/jest": "^26.0.16",
     "@types/mime": "^2.0.3",
     "@types/nock": "^11.1.0",
     "@types/node": "^14.14.10",
