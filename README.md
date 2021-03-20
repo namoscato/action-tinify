@@ -15,28 +15,31 @@
 
 ```yaml
 name: image
-on:
-  pull_request:
+on: [pull_request]
 jobs:
   compress:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
         with:
-          ref: ${{ github.head_ref }}
+          ref: ${{ github.event.pull_request.head.sha }}
       - uses: namoscato/action-tinify@v1
         with:
           api_key: ${{ secrets.TINIFY_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-The following [workflow events](https://docs.github.com/en/actions/reference/events-that-trigger-workflows) are supported:
+### Events
+
+The following [webhook events](https://docs.github.com/en/actions/reference/events-that-trigger-workflows#webhook-events) are supported:
 
 * `pull_request`
 * `pull_request_target`
 * `push`
 
-## Inputs
+In pull request contexts, [`actions/checkout`](https://github.com/actions/checkout) checkouts a _merge_ commit by default. You must checkout the pull request _HEAD_ commit by overriding the `ref` input as illustrated above and as noted in [their documentation](https://github.com/actions/checkout#Checkout-pull-request-HEAD-commit-instead-of-merge-commit).
+
+### Inputs
 
 | input | description |
 | --- | --- |

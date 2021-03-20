@@ -1,16 +1,19 @@
 import {debug, endGroup, getInput, setFailed, startGroup} from '@actions/core'
 import {context} from '@actions/github'
 import tinify from 'tinify'
-import Images from './images'
 import Git from './git'
+import Images from './images'
 
 async function run(): Promise<void> {
   try {
     tinify.key = getInput('api_key', {required: true})
-    const git = new Git(getInput('github_token', {required: true}))
+    const git = new Git({
+      token: getInput('github_token', {required: true}),
+      context
+    })
 
     startGroup('Collecting affected images')
-    const files = await git.getFiles(context)
+    const files = await git.getFiles()
     const images = new Images()
 
     for (const file of files) {
