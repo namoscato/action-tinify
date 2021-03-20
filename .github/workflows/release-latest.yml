@@ -2,8 +2,11 @@ name: release-latest
 on:
   push:
     branches: [master]
+  pull_request:
+    types: [labeled]
 jobs:
   docker:
+    if: github.event_name == 'push' || github.event.label.name == 'build latest'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
