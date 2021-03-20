@@ -39,7 +39,6 @@ export default class Git {
         }
         break
       case 'pull_request':
-      case 'pull_request_target':
         info(
           `[${this.context.eventName}] Fetching files for pull request ${this.context.payload.number}`
         )
@@ -72,27 +71,14 @@ export default class Git {
   }
 
   async commit(commit: Commit): Promise<void> {
-    let remote = 'origin'
-
-    if (isPullRequestContext(this.context)) {
-      info('Adding remote')
+    info('Detecting detached state')
+    if (isPullRequestContext(this.context) && (await this.isDetached())) {
+      info('Checking out branch from detached state')
       await exec('git', [
-        'remote',
-        'add',
-        'fork',
-        this.context.payload.pull_request.head.repo.html_url
+        'checkout',
+        '-b',
+        this.context.payload.pull_request.head.ref
       ])
-      remote = 'fork'
-
-      info('Detecting detached state')
-      if (await this.isDetached()) {
-        info('Checking out branch from detached state')
-        await exec('git', [
-          'checkout',
-          '-b',
-          this.context.payload.pull_request.head.ref
-        ])
-      }
     }
 
     info('Adding modified images')
@@ -117,7 +103,7 @@ export default class Git {
     ])
 
     info('Push commit')
-    await exec('git', ['push', remote])
+    await exec('git', ['push', 'origin'])
   }
 
   private async getCommitFiles(
