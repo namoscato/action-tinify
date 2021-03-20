@@ -30,7 +30,6 @@ export default class Git {
           const ref = commit.id
 
           info(`[${this.context.eventName}] Fetching files for commit ${ref}`)
-
           filesPromises.push(
             this.getCommitFiles({
               ...this.context.repo,
@@ -78,6 +77,7 @@ export default class Git {
     if (isPullRequestContext(this.context)) {
       remote = this.context.payload.pull_request.head.repo.git_url
 
+      info('Detecting detached state')
       if (await this.isDetached()) {
         info('Checking out branch from detached state')
         await exec('git', [
@@ -123,6 +123,10 @@ export default class Git {
 
   /** @see https://stackoverflow.com/a/52222248 */
   private async isDetached(): Promise<boolean> {
-    return Boolean(await exec('git', ['symbolic-ref', '--quiet', 'HEAD']))
+    try {
+      return Boolean(await exec('git', ['symbolic-ref', '--quiet', 'HEAD']))
+    } catch (e) {
+      return true
+    }
   }
 }
