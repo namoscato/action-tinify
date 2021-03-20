@@ -30,6 +30,12 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+The following [workflow events](https://docs.github.com/en/actions/reference/events-that-trigger-workflows) are supported:
+
+* `pull_request`
+* `pull_request_target`
+* `push`
+
 ## Inputs
 
 | input | description |

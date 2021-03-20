@@ -1,28 +1,11 @@
 import {info} from '@actions/core'
 import {exec} from '@actions/exec'
 import * as github from '@actions/github'
-import {GitHub} from '@actions/github/lib/utils'
-import Image from './image'
-import {getCommitMessage} from './git-utils'
-import {Endpoints} from '@octokit/types'
 import {Context} from '@actions/github/lib/context'
-
-export enum ContextEventName {
-  Push = 'push',
-  PullRequest = 'pull_request'
-}
-
-export interface File {
-  filename: string
-  status: string
-}
-
-export interface Commit {
-  files: Image[]
-  userName: string
-  userEmail: string
-  message: string
-}
+import {GitHub} from '@actions/github/lib/utils'
+import {Endpoints} from '@octokit/types'
+import {assertUnsupportedEvent, getCommitMessage} from './functions'
+import {Commit, File, SupportedEvent} from './types'
 
 export default class Git {
   private octokit: InstanceType<typeof GitHub>
@@ -33,13 +16,14 @@ export default class Git {
 
   async getFiles(context: Context): Promise<File[]> {
     const filesPromises: Promise<File[]>[] = []
+    const eventName = context.eventName as SupportedEvent
 
-    switch (context.eventName) {
-      case ContextEventName.Push:
+    switch (eventName) {
+      case 'push':
         for (const commit of context.payload.commits) {
           const ref = commit.id
 
-          info(`[${context.eventName}] Fetching files for commit ${ref}`)
+          info(`[${eventName}] Fetching files for commit ${ref}`)
 
           filesPromises.push(
             this.getCommitFiles({
@@ -49,9 +33,10 @@ export default class Git {
           )
         }
         break
-      case ContextEventName.PullRequest:
+      case 'pull_request':
+      case 'pull_request_target':
         info(
-          `[${context.eventName}] Fetching files for pull request ${context.payload.number}`
+          `[${eventName}] Fetching files for pull request ${context.payload.number}`
         )
 
         filesPromises.push(
@@ -65,7 +50,7 @@ export default class Git {
         )
         break
       default:
-        return assertUnsupportedEvent(context)
+        assertUnsupportedEvent(eventName)
     }
 
     const files = await Promise.all(filesPromises)
@@ -114,14 +99,4 @@ export default class Git {
 
     return response.data.files
   }
-}
-
-function assertUnsupportedEvent(context: Context): never {
-  throw new Error(
-    `Unsupported event ${
-      context.eventName
-    } (currently supported events include ${Object.values(
-      ContextEventName
-    ).join(', ')})`
-  )
 }
