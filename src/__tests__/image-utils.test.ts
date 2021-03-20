@@ -3,7 +3,7 @@ import {
   getResizeOptions,
   isResizable,
   ResizeMethod
-} from '../src/image-utils'
+} from '../image-utils'
 
 test('getCompressionSummary', () => {
   expect(getCompressionSummary([20000, 9876])).toEqual('-9.89KB (-50%)')

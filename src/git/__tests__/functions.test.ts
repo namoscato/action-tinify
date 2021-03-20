@@ -1,6 +1,6 @@
-import {getCommitMessage} from '../src/git-utils'
-import {Commit} from '../src/git'
-import Image from '../src/image'
+import Image from '../../image'
+import {getCommitMessage} from '../functions'
+import {Commit} from '../types'
 
 describe('getCommitMessage', () => {
   test('defined message', () => {
