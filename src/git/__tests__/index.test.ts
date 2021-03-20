@@ -3,12 +3,9 @@ import nock, {Scope} from 'nock'
 import Git from '..'
 
 describe('Git', () => {
-  let target: Git
   let scope: Scope
 
   beforeEach(() => {
-    target = new Git('TOKEN')
-
     scope = nock(/api\.github\.com/)
   })
 
@@ -39,16 +36,19 @@ describe('Git', () => {
       })
 
       test('should fetch files', async () => {
-        const files = await target.getFiles(({
-          eventName: 'push',
-          payload: {
-            commits: [{id: 'C1'}, {id: 'C2'}]
-          },
-          repo: {
-            owner: 'OWNER',
-            repo: 'REPO'
-          }
-        } as unknown) as Context)
+        const files = await new Git({
+          token: 'TOKEN',
+          context: ({
+            eventName: 'push',
+            payload: {
+              commits: [{id: 'C1'}, {id: 'C2'}]
+            },
+            repo: {
+              owner: 'OWNER',
+              repo: 'REPO'
+            }
+          } as unknown) as Context
+        }).getFiles()
 
         expect(files).toEqual([
           {
@@ -85,16 +85,19 @@ describe('Git', () => {
         })
 
         test('should fetch files', async () => {
-          const files = await target.getFiles(({
-            eventName,
-            payload: {
-              number: 1
-            },
-            repo: {
-              owner: 'OWNER',
-              repo: 'REPO'
-            }
-          } as unknown) as Context)
+          const files = await new Git({
+            token: 'TOKEN',
+            context: ({
+              eventName,
+              payload: {
+                number: 1
+              },
+              repo: {
+                owner: 'OWNER',
+                repo: 'REPO'
+              }
+            } as unknown) as Context
+          }).getFiles()
 
           expect(files).toEqual([
             {

@@ -17,10 +17,10 @@ export function getCommitMessage(commit: Commit): string {
   return message
 }
 
-export function assertUnsupportedEvent(context: Context): never {
+export function assertUnsupportedEvent(context: never): never {
   throw new Error(
     `Unsupported event ${
-      context.eventName
+      (context as Context).eventName
     } (currently supported events include ${supportedEvents.join(', ')})`
   )
 }

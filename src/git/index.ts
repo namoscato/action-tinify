@@ -5,29 +5,35 @@ import {Context} from '@actions/github/lib/context'
 import {GitHub} from '@actions/github/lib/utils'
 import {Endpoints} from '@octokit/types'
 import {assertUnsupportedEvent, getCommitMessage} from './functions'
-import {Commit, File, SupportedEvent} from './types'
+import {Commit, File, isPullRequestContext, SupportedContext} from './types'
+
+interface Dependencies {
+  readonly token: string
+  readonly context: Context
+}
 
 export default class Git {
   private octokit: InstanceType<typeof GitHub>
+  private context: SupportedContext
 
-  constructor(readonly token: string) {
+  constructor({token, context}: Dependencies) {
     this.octokit = github.getOctokit(token)
+    this.context = context as SupportedContext
   }
 
-  async getFiles(context: Context): Promise<File[]> {
+  async getFiles(): Promise<File[]> {
     const filesPromises: Promise<File[]>[] = []
-    const eventName = context.eventName as SupportedEvent
 
-    switch (eventName) {
+    switch (this.context.eventName) {
       case 'push':
-        for (const commit of context.payload.commits) {
+        for (const commit of this.context.payload.commits) {
           const ref = commit.id
 
-          info(`[${eventName}] Fetching files for commit ${ref}`)
+          info(`[${this.context.eventName}] Fetching files for commit ${ref}`)
 
           filesPromises.push(
             this.getCommitFiles({
-              ...context.repo,
+              ...this.context.repo,
               ref
             })
           )
@@ -36,21 +42,21 @@ export default class Git {
       case 'pull_request':
       case 'pull_request_target':
         info(
-          `[${eventName}] Fetching files for pull request ${context.payload.number}`
+          `[${this.context.eventName}] Fetching files for pull request ${this.context.payload.number}`
         )
 
         filesPromises.push(
           this.octokit.paginate(
             'GET /repos/:owner/:repo/pulls/:pull_number/files',
             {
-              ...context.repo,
-              pull_number: context.payload.number
+              ...this.context.repo,
+              pull_number: this.context.payload.number
             }
           )
         )
         break
       default:
-        assertUnsupportedEvent(eventName)
+        assertUnsupportedEvent(this.context)
     }
 
     const files = await Promise.all(filesPromises)
@@ -67,6 +73,21 @@ export default class Git {
   }
 
   async commit(commit: Commit): Promise<void> {
+    let remote = 'origin'
+
+    if (isPullRequestContext(this.context)) {
+      remote = this.context.payload.pull_request.head.repo.git_url
+
+      if (await this.isDetached()) {
+        info('Checking out branch from detached state')
+        await exec('git', [
+          'checkout',
+          '-b',
+          this.context.payload.pull_request.head.ref
+        ])
+      }
+    }
+
     info('Adding modified images')
     await exec('git', [
       'add',
@@ -89,7 +110,7 @@ export default class Git {
     ])
 
     info('Push commit')
-    await exec('git', ['push', 'origin'])
+    await exec('git', ['push', remote])
   }
 
   private async getCommitFiles(
@@ -98,5 +119,10 @@ export default class Git {
     const response = await this.octokit.repos.getCommit(params)
 
     return response.data.files
+  }
+
+  /** @see https://stackoverflow.com/a/52222248 */
+  private async isDetached(): Promise<boolean> {
+    return Boolean(await exec('git', ['symbolic-ref', '--quiet', 'HEAD']))
   }
 }
