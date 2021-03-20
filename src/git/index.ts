@@ -75,7 +75,14 @@ export default class Git {
     let remote = 'origin'
 
     if (isPullRequestContext(this.context)) {
-      remote = this.context.payload.pull_request.head.repo.clone_url
+      info('Adding remote')
+      await exec('git', [
+        'remote',
+        'add',
+        'fork',
+        this.context.payload.pull_request.head.repo.html_url
+      ])
+      remote = 'fork'
 
       info('Detecting detached state')
       if (await this.isDetached()) {
