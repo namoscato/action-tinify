@@ -123,6 +123,10 @@ export default class Git {
 
   /** @see https://stackoverflow.com/a/52222248 */
   private async isDetached(): Promise<boolean> {
-    return Boolean(await exec('git', ['symbolic-ref', '--quiet', 'HEAD']))
+    try {
+      return Boolean(await exec('git', ['symbolic-ref', '--quiet', 'HEAD']))
+    } catch (e) {
+      return true
+    }
   }
 }
