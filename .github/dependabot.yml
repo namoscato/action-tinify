@@ -6,15 +6,3 @@ updates:
     interval: monthly
     timezone: America/New_York
   open-pull-requests-limit: 10
-  ignore:
-  - dependency-name: "@types/node"
-    versions:
-    - ">= 13.a, < 14"
-  - dependency-name: "@typescript-eslint/parser"
-    versions:
-    - 4.14.0
-    - 4.14.1
-    - 4.14.2
-    - 4.15.0
-    - 4.15.1
-    - 4.15.2
