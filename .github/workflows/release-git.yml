@@ -1,0 +1,10 @@
+name: release
+on:
+  release:
+    types: [published, edited]
+jobs:
+  git:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bump git tags
+        uses: Actions-R-Us/actions-tagger@v2
