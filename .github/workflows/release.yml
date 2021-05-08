@@ -1,35 +1,10 @@
 name: release
 on:
   release:
-    types: [published]
+    types: [published, edited]
 jobs:
-  git:
+  tag:
     runs-on: ubuntu-latest
-    outputs:
-      major_version: ${{ steps.version.outputs.major }}
     steps:
       - name: Bump git tags
-        id: tag
         uses: Actions-R-Us/actions-tagger@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Extract major version
-        id: version
-        env:
-          REF_NAME: ${{ steps.tag.outputs.ref_name }}
-        run: echo ::set-output name=major::${REF_NAME#tags/}
-  docker:
-    runs-on: ubuntu-latest
-    needs: git
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Push to Docker Hub
-        uses: docker/build-push-action@v1
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-          repository: namoscato/github-action-tinify
-          tags: ${{ needs.git.outputs.major_version }}
-          tag_with_ref: true
-          add_git_labels: true
