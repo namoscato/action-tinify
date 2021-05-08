@@ -6,8 +6,8 @@
   "main": "lib/main.js",
   "scripts": {
     "build": "tsc",
-    "format": "prettier --write **/*.ts",
-    "format-check": "prettier --check **/*.ts",
+    "format": "prettier --write .",
+    "format-check": "prettier --check .",
     "lint": "tsc --noEmit && eslint src/**/*.ts",
     "test": "jest",
     "all": "npm run build && npm run format-check && npm run lint && npm test"
