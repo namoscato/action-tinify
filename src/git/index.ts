@@ -76,7 +76,7 @@ export default class Git {
 
     info('Detecting detached state')
     if (isPullRequestContext(this.context)) {
-      remote = this.context.payload.pull_request.head.repo.git_url
+      remote = this.context.payload.pull_request.head.repo.clone_url
 
       if (await this.isDetached()) {
         info('Checking out branch from detached state')
