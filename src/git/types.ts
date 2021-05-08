@@ -1,5 +1,5 @@
 import {Context} from '@actions/github/lib/context'
-import {PullRequestEvent, PushEvent} from '@octokit/webhooks-definitions/schema'
+import {PullRequestEvent, PushEvent} from '@octokit/webhooks-types'
 import Image from '../image'
 
 export const supportedEvents = ['push', 'pull_request'] as const
