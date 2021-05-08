@@ -16,7 +16,7 @@ jobs:
         id: nvm
         run: echo ::set-output name=NVMRC::$(cat .nvmrc)
       - name: Use Node.js ${{ steps.nvm.outputs.NVMRC }}
-        uses: actions/setup-node@v2.1.5
+        uses: actions/setup-node@v2
         with:
           node-version: '${{ steps.nvm.outputs.NVMRC }}'
       - name: Install dependencies
@@ -34,7 +34,7 @@ jobs:
         id: nvm
         run: echo ::set-output name=NVMRC::$(cat .nvmrc)
       - name: Use Node.js ${{ steps.nvm.outputs.NVMRC }}
-        uses: actions/setup-node@v2.1.5
+        uses: actions/setup-node@v2
         with:
           node-version: '${{ steps.nvm.outputs.NVMRC }}'
       - name: Install dependencies
