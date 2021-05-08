@@ -2,7 +2,11 @@ import {Context} from '@actions/github/lib/context'
 import {PullRequestEvent, PushEvent} from '@octokit/webhooks-definitions/schema'
 import Image from '../image'
 
-export const supportedEvents = ['push', 'pull_request'] as const
+export const supportedEvents = [
+  'push',
+  'pull_request',
+  'pull_request_target'
+] as const
 
 type SupportedEvent = typeof supportedEvents[number]
 
@@ -16,7 +20,7 @@ interface ContextPush extends ContextBase<PushEvent> {
 }
 
 interface ContextPullRequest extends ContextBase<PullRequestEvent> {
-  eventName: 'pull_request'
+  eventName: 'pull_request' | 'pull_request_target'
 }
 
 export type SupportedContext = ContextPush | ContextPullRequest
@@ -30,7 +34,10 @@ export function isPushContext(
 export function isPullRequestContext(
   context: SupportedContext
 ): context is ContextPullRequest {
-  return 'pull_request' === context.eventName
+  return (
+    'pull_request' === context.eventName ||
+    'pull_request_target' === context.eventName
+  )
 }
 
 export interface File {
