@@ -1,4 +1,4 @@
-name: release
+name: docker
 on:
   push:
     branches:
@@ -14,7 +14,7 @@ on:
       - reopened
       - labeled
 jobs:
-  docker:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
