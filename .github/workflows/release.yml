@@ -3,7 +3,7 @@ on:
   release:
     types: [published, edited]
 jobs:
-  git:
+  tag:
     runs-on: ubuntu-latest
     steps:
       - name: Bump git tags
