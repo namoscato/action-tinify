@@ -13,9 +13,14 @@
 
 ## Usage
 
+For example, on [`pull_request` events](https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#onpushpull_requestpaths) with modified files inside the `static` directory:
+
 ```yaml
 name: image
-on: [pull_request]
+on:
+  pull_request:
+    paths:
+      - 'static/**'
 jobs:
   compress:
     runs-on: ubuntu-latest
