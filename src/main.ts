@@ -49,8 +49,11 @@ async function run(): Promise<void> {
       endGroup()
     }
   } catch (error) {
-    setFailed(error.message)
-    debug(error.stack)
+    setFailed(error instanceof Error ? error.message : String(error))
+
+    if (error instanceof Error && error.stack) {
+      debug(error.stack)
+    }
   }
 }
 

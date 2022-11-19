@@ -3,5 +3,6 @@
         "octokit",
         "repos",
         "tinify"
-    ]
+    ],
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
 }

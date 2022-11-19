@@ -6,7 +6,7 @@ export const supportedEvents = ['push', 'pull_request'] as const
 
 type SupportedEvent = typeof supportedEvents[number]
 
-interface ContextBase<T> extends Context {
+interface ContextBase<T> extends Omit<Context, 'payload'> {
   eventName: SupportedEvent
   payload: T
 }
