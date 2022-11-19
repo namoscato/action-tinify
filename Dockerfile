@@ -1,4 +1,4 @@
-FROM node:lts AS builder
+FROM node:18 AS builder
 WORKDIR /usr/app
 COPY package*.json ./
 RUN npm ci
@@ -6,7 +6,7 @@ COPY tsconfig.json .
 COPY src ./src
 RUN npm run build
 
-FROM node:lts
+FROM node:18
 RUN apt-get update \
   && apt-get -y install exiftool \
   && rm -rf /var/lib/apt/lists/*
