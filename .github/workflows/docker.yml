@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v3
       - name: Set Docker meta
         id: meta
-        uses: crazy-max/ghaction-docker-meta@v4
+        uses: docker/metadata-action@v4
         with:
           images: namoscato/github-action-tinify
           tags: |
