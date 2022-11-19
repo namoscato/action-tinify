@@ -28,7 +28,7 @@ inputs:
     required: false
 runs:
   using: 'docker'
-  image: 'docker://namoscato/github-action-tinify:pr-333'
+  image: 'docker://namoscato/github-action-tinify:v1'
 branding:
   icon: 'image'
   color: 'green'
