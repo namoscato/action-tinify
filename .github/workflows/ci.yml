@@ -31,4 +31,3 @@ jobs:
         uses: ./
         with:
           api_key: abc123
-          github_token: ${{ secrets.GITHUB_TOKEN }}
