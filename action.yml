@@ -6,8 +6,9 @@ inputs:
     description: 'Tinify API key'
     required: true
   github_token:
-    description: 'GITHUB_TOKEN secret'
-    required: true
+    description: 'Repository GITHUB_TOKEN or personal access token secret'
+    required: false
+    default: ${{ github.token }}
   commit_user_name:
     description: 'Git user.name'
     required: false
