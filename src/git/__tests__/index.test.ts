@@ -38,7 +38,7 @@ describe('Git', () => {
       test('should fetch files', async () => {
         const files = await new Git({
           token: 'TOKEN',
-          context: ({
+          context: {
             eventName: 'push',
             payload: {
               commits: [{id: 'C1'}, {id: 'C2'}]
@@ -47,7 +47,7 @@ describe('Git', () => {
               owner: 'OWNER',
               repo: 'REPO'
             }
-          } as unknown) as Context
+          } as unknown as Context
         }).getFiles()
 
         expect(files).toEqual([
@@ -86,7 +86,7 @@ describe('Git', () => {
       test('should fetch files', async () => {
         const files = await new Git({
           token: 'TOKEN',
-          context: ({
+          context: {
             eventName: 'pull_request',
             payload: {
               number: 1
@@ -95,7 +95,7 @@ describe('Git', () => {
               owner: 'OWNER',
               repo: 'REPO'
             }
-          } as unknown) as Context
+          } as unknown as Context
         }).getFiles()
 
         expect(files).toEqual([
