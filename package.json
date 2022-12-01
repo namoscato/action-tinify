@@ -32,14 +32,14 @@
     "@actions/core": "^1.9.1",
     "@actions/exec": "^1.0.4",
     "@actions/github": "^4.0.0",
-    "bytes": "^3.1.0",
+    "bytes": "^3.1.2",
     "image-size": "^1.0.0",
     "mime": "^3.0.0",
     "tinify": "^1.6.0-beta.2"
   },
   "devDependencies": {
     "@octokit/webhooks": "^10.3.1",
-    "@types/bytes": "^3.1.0",
+    "@types/bytes": "^3.1.1",
     "@types/jest": "^26.0.23",
     "@types/mime": "^3.0.1",
     "@types/nock": "^11.1.0",
