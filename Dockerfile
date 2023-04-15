@@ -23,6 +23,11 @@ RUN wget -O exiftool.tar.gz "https://exiftool.org/Image-ExifTool-${EXIFTOOL_VERS
   cd .. \
   rm exiftool.tar.gz
 
+# Fix "detected dubious ownership" issue:
+# https://github.com/actions/runner-images/issues/6775#issuecomment-1410270956
+# https://github.com/actions/checkout/issues/1169
+RUN git config --system --add safe.directory /github/workspace
+
 WORKDIR /usr/app
 
 COPY package*.json ./
