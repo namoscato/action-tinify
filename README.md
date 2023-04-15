@@ -8,7 +8,7 @@
 
 ## Features
 
-- filters PNG and JPEG files in a commit or pull request
+- filters PNG, JPEG, and WebP files in a commit or pull request
 - optionally scales images proportionally
 - sets Exif metadata to prevent duplicate compressions
 - pushes commit with compression metrics

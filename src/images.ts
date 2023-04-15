@@ -3,7 +3,8 @@ import {existsSync} from 'fs'
 import {getType} from 'mime'
 import Image from './image'
 
-const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png']
+/** @see https://tinypng.com/developers/reference#compressing-images */
+const SUPPORTED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
 export default class Images implements Iterable<Image> {
   private readonly filenames = new Set<string>()
