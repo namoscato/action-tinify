@@ -5,7 +5,7 @@ import {Context} from '@actions/github/lib/context'
 import {GitHub} from '@actions/github/lib/utils'
 import {Endpoints} from '@octokit/types'
 import {assertUnsupportedEvent, getCommitMessage} from './functions'
-import {Commit, File, isPullRequestContext, SupportedContext} from './types'
+import {Commit, File, SupportedContext, isPullRequestContext} from './types'
 
 interface Dependencies {
   readonly token: string
@@ -22,7 +22,7 @@ export default class Git {
   }
 
   async getFiles(): Promise<File[]> {
-    const filesPromises: Promise<File[]>[] = []
+    const filesPromises: Array<Promise<File[]>> = []
 
     switch (this.context.eventName) {
       case 'push':
@@ -45,7 +45,7 @@ export default class Git {
 
         filesPromises.push(
           this.octokit.paginate(
-            'GET /repos/:owner/:repo/pulls/:pull_number/files',
+            'GET /repos/{owner}/{repo}/pulls/{pull_number}/files',
             {
               ...this.context.repo,
               pull_number: this.context.payload.number
@@ -107,11 +107,15 @@ export default class Git {
   }
 
   private async getCommitFiles(
-    params: Endpoints['GET /repos/:owner/:repo/commits/:ref']['parameters']
+    params: Endpoints['GET /repos/{owner}/{repo}/commits/{ref}']['parameters']
   ): Promise<File[]> {
-    const response = await this.octokit.repos.getCommit(params)
+    const files = (await this.octokit.rest.repos.getCommit(params)).data.files
 
-    return response.data.files
+    if (!files) {
+      throw new Error('Error fetching commit files')
+    }
+
+    return files
   }
 
   /** @see https://stackoverflow.com/a/52222248 */

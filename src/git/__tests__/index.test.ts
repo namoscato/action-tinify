@@ -1,4 +1,5 @@
 import {Context} from '@actions/github/lib/context'
+import {beforeEach, describe, expect, test} from '@jest/globals'
 import nock, {Scope} from 'nock'
 import Git from '..'
 
