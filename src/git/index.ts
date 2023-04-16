@@ -45,7 +45,7 @@ export default class Git {
 
         filesPromises.push(
           this.octokit.paginate(
-            'GET /repos/:owner/:repo/pulls/:pull_number/files',
+            'GET /repos/{owner}/{repo}/pulls/{pull_number}/files',
             {
               ...this.context.repo,
               pull_number: this.context.payload.number
