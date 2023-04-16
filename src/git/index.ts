@@ -107,11 +107,15 @@ export default class Git {
   }
 
   private async getCommitFiles(
-    params: Endpoints['GET /repos/:owner/:repo/commits/:ref']['parameters']
+    params: Endpoints['GET /repos/{owner}/{repo}/commits/{ref}']['parameters']
   ): Promise<File[]> {
-    const response = await this.octokit.repos.getCommit(params)
+    const files = (await this.octokit.rest.repos.getCommit(params)).data.files
 
-    return response.data.files
+    if (!files) {
+      throw new Error('Error fetching commit files')
+    }
+
+    return files
   }
 
   /** @see https://stackoverflow.com/a/52222248 */
