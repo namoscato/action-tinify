@@ -5,7 +5,7 @@ import {Context} from '@actions/github/lib/context'
 import {GitHub} from '@actions/github/lib/utils'
 import {Endpoints} from '@octokit/types'
 import {assertUnsupportedEvent, getCommitMessage} from './functions'
-import {Commit, File, isPullRequestContext, SupportedContext} from './types'
+import {Commit, File, SupportedContext, isPullRequestContext} from './types'
 
 interface Dependencies {
   readonly token: string
@@ -22,7 +22,7 @@ export default class Git {
   }
 
   async getFiles(): Promise<File[]> {
-    const filesPromises: Promise<File[]>[] = []
+    const filesPromises: Array<Promise<File[]>> = []
 
     switch (this.context.eventName) {
       case 'push':
