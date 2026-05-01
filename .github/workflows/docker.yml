@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Set Docker meta
         id: meta
-        uses: docker/metadata-action@v4
+        uses: docker/metadata-action@v6
         with:
           images: namoscato/github-action-tinify
           tags: |
